@@ -23,6 +23,72 @@ function setMachineAllShifts(machineId, a, b, c) {
   const today = new Date().toISOString().split('T')[0]
   window.efficiencySystem.setMachineEfficiency(machineId, today, a, b, c)
 }
+function getGlobalEfficiency() {
+  console.warn('⚠️ getGlobalEfficiency is deprecated')
+  if (!window.efficiencySystem) {
+    return { average: 0, byShift: { A: 0, B: 0, C: 0 }, machineCount: 0 }
+  }
+  
+  const today = new Date().toISOString().split('T')[0]
+  const machines = []
+  
+  // Get all machines with efficiency data today
+  for (let i = 1; i <= 640; i++) {
+    const eff = window.efficiencySystem.getMachineEfficiency(i, today)
+    if (eff && eff.global > 0) {
+      machines.push(eff)
+    }
+  }
+  
+  if (machines.length === 0) {
+    return { average: 0, byShift: { A: 0, B: 0, C: 0 }, machineCount: 0 }
+  }
+  
+  const avgA = machines.reduce((sum, m) => sum + m.shiftA, 0) / machines.length
+  const avgB = machines.reduce((sum, m) => sum + m.shiftB, 0) / machines.length
+  const avgC = machines.reduce((sum, m) => sum + m.shiftC, 0) / machines.length
+  const avg = (avgA + avgB + avgC) / 3
+  
+  return {
+    average: avg,
+    byShift: { A: avgA, B: avgB, C: avgC },
+    machineCount: machines.length,
+    totalMachines: machines.length
+  }
+}
+
+function getEfficiencyByBlock(blocks) {
+  console.warn('⚠️ getEfficiencyByBlock is deprecated')
+  if (!window.efficiencySystem) return {}
+  
+  const today = new Date().toISOString().split('T')[0]
+  const byBlock = {}
+  
+  if (Array.isArray(blocks)) {
+    blocks.forEach(block => {
+      byBlock[block.name] = window.efficiencySystem.getBlockEfficiency(block.name, today)
+    })
+  }
+  
+  return byBlock
+}
+
+function getEfficiencyStat(min, max) {
+  console.warn('⚠️ getEfficiencyStat is deprecated')
+  if (!window.efficiencySystem) return 0
+  
+  const today = new Date().toISOString().split('T')[0]
+  let count = 0
+  
+  for (let i = 1; i <= 640; i++) {
+    const eff = window.efficiencySystem.getMachineEfficiency(i, today)
+    if (eff && eff.global >= min && eff.global <= max) {
+      count++
+    }
+  }
+  
+  return count
+}
 // Layout mesin app - Fixed Real-time Sync
 const $ = id => document.getElementById(id)
 
@@ -1247,6 +1313,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
