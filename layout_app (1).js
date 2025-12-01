@@ -1,95 +1,3 @@
-// ============ EFFICIENCY DATA MODULE (INLINE) ============
-let efficiencyData = {}
-
-function loadEfficiencyData() {
-  const saved = localStorage.getItem('layout_efficiency_v1')
-  if (saved) {
-    efficiencyData = JSON.parse(saved)
-  }
-  console.log('✅ Efficiency data loaded:', efficiencyData)
-}
-
-function saveEfficiencyData() {
-  localStorage.setItem('layout_efficiency_v1', JSON.stringify(efficiencyData))
-  console.log('💾 Efficiency data saved')
-}
-
-function getMachineEfficiency(machineId) {
-  if (!efficiencyData[machineId]) {
-    efficiencyData[machineId] = {
-      shifts: { A: 0, B: 0, C: 0 },
-      average: 0,
-      lastUpdated: new Date().toISOString()
-    }
-  }
-  return efficiencyData[machineId]
-}
-
-function setMachineShiftEfficiency(machineId, shift, efficiency) {
-  const val = Math.min(100, Math.max(0, parseInt(efficiency) || 0))
-  getMachineEfficiency(machineId).shifts[shift] = val
-  
-  const shifts = efficiencyData[machineId].shifts
-  efficiencyData[machineId].average = (shifts.A + shifts.B + shifts.C) / 3
-  efficiencyData[machineId].lastUpdated = new Date().toISOString()
-  
-  saveEfficiencyData()
-  console.log(`✏️ Machine ${machineId} shift ${shift}: ${val}%`)
-}
-
-function getGlobalEfficiency() {
-  const machines = Object.values(efficiencyData)
-  if (machines.length === 0) {
-    return { average: 0, byShift: { A: 0, B: 0, C: 0 }, machineCount: 0 }
-  }
-  
-  const avgA = machines.reduce((sum, m) => sum + m.shifts.A, 0) / machines.length
-  const avgB = machines.reduce((sum, m) => sum + m.shifts.B, 0) / machines.length
-  const avgC = machines.reduce((sum, m) => sum + m.shifts.C, 0) / machines.length
-  const avg = (avgA + avgB + avgC) / 3
-  
-  return {
-    average: avg,
-    byShift: { A: avgA, B: avgB, C: avgC },
-    machineCount: machines.length
-  }
-}
-
-function getEfficiencyByBlock(blocks) {
-  const byBlock = {}
-  blocks.forEach(block => {
-    const machineIds = block.machines || []
-    const machines = machineIds.map(id => efficiencyData[id]).filter(Boolean)
-    if (machines.length > 0) {
-      const avg = machines.reduce((sum, m) => sum + m.average, 0) / machines.length
-      byBlock[block.name] = avg
-    }
-  })
-  return byBlock
-}
-
-function exportEfficiencyToExcel() {
-  const data = []
-  Object.keys(efficiencyData)
-    .map(Number)
-    .sort((a, b) => a - b)
-    .forEach(id => {
-      const m = efficiencyData[id]
-      data.push({
-        'Mesin': id,
-        'Shift A': m.shifts.A,
-        'Shift B': m.shifts.B,
-        'Shift C': m.shifts.C,
-        'Rata-rata': Math.round(m.average),
-        'Terakhir Update': new Date(m.lastUpdated).toLocaleString('id-ID')
-      })
-    })
-  return data
-}
-
-// Auto-load efficiency data on script load
-loadEfficiencyData()
-console.log('📦 Efficiency data module loaded inline')
 
 // Layout mesin app - Fixed Real-time Sync
 const $ = id => document.getElementById(id)
@@ -1313,6 +1221,12 @@ window._layout = {
   setMachineAllShifts,
   getGlobalEfficiency,
   getEfficiencyByBlock
+}
+// ============ EFFICIENCY SYSTEM CHECK ============
+if (window.efficiencySystem) {
+  console.log('✅ Efficiency system available in layout app')
+} else {
+  console.error('❌ Efficiency system NOT available')
 }
 
 
