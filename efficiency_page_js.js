@@ -1,0 +1,438 @@
+// ============ EFFICIENCY PAGE LOGIC ============
+// Menampilkan dan mengelola data efisiensi
+
+const BLOCKS = {
+  A: [{start: 1, end: 160}],
+  B: [
+    {start: 201, end: 220}, {start: 261, end: 280}, {start: 321, end: 340},
+    {start: 381, end: 400}, {start: 441, end: 460}, {start: 501, end: 520},
+    {start: 561, end: 580}, {start: 621, end: 640}
+  ],
+  C: [
+    {start: 181, end: 200}, {start: 241, end: 260}, {start: 301, end: 320},
+    {start: 361, end: 380}, {start: 421, end: 440}, {start: 481, end: 500},
+    {start: 541, end: 560}, {start: 601, end: 620}
+  ],
+  D: [
+    {start: 161, end: 180}, {start: 221, end: 240}, {start: 281, end: 300},
+    {start: 341, end: 360}, {start: 401, end: 420}, {start: 461, end: 480},
+    {start: 521, end: 540}, {start: 581, end: 600}
+  ]
+}
+
+window.BLOCKS = BLOCKS
+
+let trendChart = null
+let blockChart = null
+
+function getMachineBlock(machineNum) {
+  for (const [blockName, ranges] of Object.entries(BLOCKS)) {
+    for (const range of ranges) {
+      if (machineNum >= range.start && machineNum <= range.end) {
+        return blockName
+      }
+    }
+  }
+  return '?'
+}
+
+// ============ RENDER FUNCTIONS ============
+
+function renderEfficiencyGrid() {
+  const grid = document.getElementById('efficiency-grid')
+  const dateFilter = document.getElementById('date-filter').value
+  const blockFilter = document.getElementById('block-filter').value
+  const sortFilter = document.getElementById('sort-filter').value
+  
+  if (!grid) return
+  
+  const date = dateFilter || new Date().toISOString().split('T')[0]
+  
+  // Get all machines with efficiency data
+  const machinesWithData = []
+  
+  for (let i = 1; i <= 640; i++) {
+    const eff = window.efficiencySystem.getMachineEfficiency(i, date)
+    const block = getMachineBlock(i)
+    
+    // Filter by block
+    if (blockFilter && block !== blockFilter) continue
+    
+    if (eff) {
+      machinesWithData.push({
+        id: i,
+        block: block,
+        ...eff
+      })
+    }
+  }
+  
+  // Sort
+  if (sortFilter === 'efficiency') {
+    machinesWithData.sort((a, b) => b.global - a.global)
+  } else if (sortFilter === 'efficiency-low') {
+    machinesWithData.sort((a, b) => a.global - b.global)
+  } else {
+    machinesWithData.sort((a, b) => a.id - b.id)
+  }
+  
+  // Render
+  if (machinesWithData.length === 0) {
+    grid.innerHTML = '<div class="no-data">Tidak ada data efisiensi untuk tanggal ini.</div>'
+    return
+  }
+  
+  grid.innerHTML = ''
+  
+  machinesWithData.forEach(machine => {
+    const card = document.createElement('div')
+    card.className = 'efficiency-card'
+    
+    let effClass = 'medium'
+    if (machine.global >= 80) effClass = 'high'
+    else if (machine.global < 60) effClass = 'low'
+    
+    card.innerHTML = `
+      <div class="efficiency-card-header">
+        <div>
+          <div class="machine-number">Mesin ${machine.id}</div>
+          <div style="font-size: 11px; color: #9aa6c0;">Blok ${machine.block}</div>
+        </div>
+        <div class="efficiency-global ${effClass}">${machine.global}%</div>
+      </div>
+      
+      <div class="shift-data">
+        <div class="shift-item">
+          <div class="shift-label">Shift A</div>
+          <div class="shift-value">${machine.shiftA}%</div>
+        </div>
+        <div class="shift-item">
+          <div class="shift-label">Shift B</div>
+          <div class="shift-value">${machine.shiftB}%</div>
+        </div>
+        <div class="shift-item">
+          <div class="shift-label">Shift C</div>
+          <div class="shift-value">${machine.shiftC}%</div>
+        </div>
+      </div>
+      
+      <div style="margin-top: 12px; font-size: 10px; color: #9aa6c0;">
+        ${machine.editor || 'Unknown'} · ${machine.timestamp ? new Date(machine.timestamp).toLocaleString() : ''}
+      </div>
+    `
+    
+    grid.appendChild(card)
+  })
+}
+
+function updateBlockSummary() {
+  const date = document.getElementById('date-filter').value || new Date().toISOString().split('T')[0]
+  
+  const blockA = window.efficiencySystem.getBlockEfficiency('A', date)
+  const blockB = window.efficiencySystem.getBlockEfficiency('B', date)
+  const blockC = window.efficiencySystem.getBlockEfficiency('C', date)
+  const blockD = window.efficiencySystem.getBlockEfficiency('D', date)
+  
+  document.getElementById('block-a-eff').textContent = blockA + '%'
+  document.getElementById('block-b-eff').textContent = blockB + '%'
+  document.getElementById('block-c-eff').textContent = blockC + '%'
+  document.getElementById('block-d-eff').textContent = blockD + '%'
+}
+
+function updateTrendChart() {
+  const canvas = document.getElementById('efficiency-trend-chart')
+  if (!canvas) return
+  
+  const ctx = canvas.getContext('2d')
+  
+  // Get last 7 days
+  const dates = []
+  const avgEfficiency = []
+  
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date()
+    date.setDate(date.getDate() - i)
+    const dateStr = date.toISOString().split('T')[0]
+    
+    dates.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }))
+    
+    // Calculate average efficiency for this date
+    let totalEff = 0
+    let count = 0
+    
+    for (let machineId = 1; machineId <= 640; machineId++) {
+      const eff = window.efficiencySystem.getMachineEfficiency(machineId, dateStr)
+      if (eff && eff.global > 0) {
+        totalEff += eff.global
+        count++
+      }
+    }
+    
+    avgEfficiency.push(count > 0 ? Math.round((totalEff / count) * 10) / 10 : 0)
+  }
+  
+  if (trendChart) {
+    trendChart.destroy()
+  }
+  
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: 'Rata-rata Efisiensi Global (%)',
+        data: avgEfficiency,
+        borderColor: '#ffd166',
+        backgroundColor: 'rgba(255, 209, 102, 0.1)',
+        tension: 0.4,
+        fill: true,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#cbd5e1' }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#cbd5e1' },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+        },
+        y: {
+          beginAtZero: true,
+          max: 100,
+          ticks: { color: '#cbd5e1' },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+        }
+      }
+    }
+  })
+}
+
+function updateBlockChart() {
+  const canvas = document.getElementById('block-efficiency-chart')
+  if (!canvas) return
+  
+  const ctx = canvas.getContext('2d')
+  const date = document.getElementById('date-filter').value || new Date().toISOString().split('T')[0]
+  
+  const blockEfficiency = {
+    'Blok A': window.efficiencySystem.getBlockEfficiency('A', date),
+    'Blok B': window.efficiencySystem.getBlockEfficiency('B', date),
+    'Blok C': window.efficiencySystem.getBlockEfficiency('C', date),
+    'Blok D': window.efficiencySystem.getBlockEfficiency('D', date)
+  }
+  
+  if (blockChart) {
+    blockChart.destroy()
+  }
+  
+  blockChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(blockEfficiency),
+      datasets: [{
+        label: 'Efisiensi (%)',
+        data: Object.values(blockEfficiency),
+        backgroundColor: ['#ff6ec7', '#7c5cff', '#00ffe1', '#ffd166']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#cbd5e1' },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+        },
+        y: {
+          beginAtZero: true,
+          max: 100,
+          ticks: { color: '#cbd5e1' },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
+        }
+      }
+    }
+  })
+}
+
+function updateClock() {
+  const el = document.getElementById('clock')
+  const de = document.getElementById('date')
+  if (!el) return
+  
+  const now = new Date()
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  const ss = String(now.getSeconds()).padStart(2, '0')
+  el.textContent = `${hh}:${mm}:${ss}`
+  
+  if (de) {
+    de.textContent = now.toLocaleDateString('id-ID', { 
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
+    })
+  }
+}
+
+function showToast(text, type = '') {
+  let root = document.querySelector('.toast-root')
+  if (!root) {
+    root = document.createElement('div')
+    root.className = 'toast-root'
+    root.style.cssText = 'position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px'
+    document.body.appendChild(root)
+  }
+  
+  const toast = document.createElement('div')
+  toast.className = 'toast' + (type ? ' ' + type : '')
+  toast.style.cssText = `
+    padding:12px 20px;
+    background:rgba(15,23,42,0.95);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:8px;
+    color:#fff;
+    font-size:13px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.3);
+    animation: slideIn 0.3s ease-out;
+  `
+  
+  if (type === 'success') {
+    toast.style.borderColor = 'rgba(34,197,94,0.3)'
+    toast.style.background = 'rgba(34,197,94,0.1)'
+  } else if (type === 'warn') {
+    toast.style.borderColor = 'rgba(251,146,60,0.3)'
+    toast.style.background = 'rgba(251,146,60,0.1)'
+  }
+  
+  toast.textContent = text
+  root.appendChild(toast)
+  
+  setTimeout(() => {
+    toast.style.transition = 'opacity .3s, transform .3s'
+    toast.style.opacity = '0'
+    toast.style.transform = 'translateX(20px)'
+    setTimeout(() => toast.remove(), 350)
+  }, 3500)
+}
+
+// ============ EVENT LISTENERS ============
+
+function attachEventListeners() {
+  // Date filter
+  const dateFilter = document.getElementById('date-filter')
+  if (dateFilter) {
+    dateFilter.value = new Date().toISOString().split('T')[0]
+    dateFilter.addEventListener('change', () => {
+      renderEfficiencyGrid()
+      updateBlockSummary()
+      updateBlockChart()
+    })
+  }
+  
+  // Block filter
+  const blockFilter = document.getElementById('block-filter')
+  if (blockFilter) {
+    blockFilter.addEventListener('change', renderEfficiencyGrid)
+  }
+  
+  // Sort filter
+  const sortFilter = document.getElementById('sort-filter')
+  if (sortFilter) {
+    sortFilter.addEventListener('change', renderEfficiencyGrid)
+  }
+  
+  // Import button
+  const importBtn = document.getElementById('import-efficiency')
+  if (importBtn) {
+    importBtn.addEventListener('click', () => {
+      document.getElementById('efficiency-file-input').click()
+    })
+  }
+  
+  // File input
+  const fileInput = document.getElementById('efficiency-file-input')
+  if (fileInput) {
+    fileInput.addEventListener('change', async (e) => {
+      if (e.target.files[0]) {
+        try {
+          const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
+          showToast(`✅ Imported ${result.imported} records`, 'success')
+          
+          if (result.errors.length > 0) {
+            console.warn('Import errors:', result.errors)
+            showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
+          }
+          
+          // Refresh UI
+          renderEfficiencyGrid()
+          updateBlockSummary()
+          updateTrendChart()
+          updateBlockChart()
+        } catch (error) {
+          console.error('Import error:', error)
+          showToast('❌ Import failed: ' + error.message, 'warn')
+        }
+      }
+    })
+  }
+  
+  // Export button
+  const exportBtn = document.getElementById('export-efficiency')
+  if (exportBtn) {
+    exportBtn.addEventListener('click', async () => {
+      try {
+        await window.efficiencySystem.exportEfficiencyToExcel()
+      } catch (error) {
+        console.error('Export error:', error)
+        showToast('❌ Export failed', 'warn')
+      }
+    })
+  }
+}
+
+// ============ INITIALIZATION ============
+
+function initialize() {
+  console.log('🚀 Initializing efficiency page...')
+  
+  // Load efficiency data
+  if (window.efficiencySystem) {
+    window.efficiencySystem.loadEfficiencyData()
+  }
+  
+  // Setup UI
+  attachEventListeners()
+  renderEfficiencyGrid()
+  updateBlockSummary()
+  updateTrendChart()
+  updateBlockChart()
+  updateClock()
+  
+  console.log('✅ Efficiency page initialized')
+}
+
+// Start
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initialize)
+} else {
+  initialize()
+}
+
+setInterval(updateClock, 1000)
+
+// Auto-refresh every 30 seconds
+setInterval(() => {
+  renderEfficiencyGrid()
+  updateBlockSummary()
+  updateTrendChart()
+  updateBlockChart()
+}, 30000)

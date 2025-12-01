@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Efisiensi Mesin — Dashboard</title>
+  <link rel="stylesheet" href="layout_styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Fredoka:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    .efficiency-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    
+    .efficiency-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 16px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .efficiency-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+      border-color: rgba(255,209,102,0.3);
+    }
+    
+    .efficiency-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .machine-number {
+      font-size: 24px;
+      font-weight: 700;
+      color: #fff;
+    }
+    
+    .efficiency-global {
+      font-size: 28px;
+      font-weight: 700;
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: rgba(255,209,102,0.1);
+      border: 1px solid rgba(255,209,102,0.3);
+    }
+    
+    .efficiency-global.high {
+      color: #34d399;
+      background: rgba(52,211,153,0.1);
+      border-color: rgba(52,211,153,0.3);
+    }
+    
+    .efficiency-global.medium {
+      color: #ffd166;
+    }
+    
+    .efficiency-global.low {
+      color: #f97316;
+      background: rgba(249,115,22,0.1);
+      border-color: rgba(249,115,22,0.3);
+    }
+    
+    .shift-data {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    
+    .shift-item {
+      background: rgba(255,255,255,0.02);
+      padding: 8px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    
+    .shift-label {
+      font-size: 10px;
+      color: #9aa6c0;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    
+    .shift-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+    
+    .block-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    
+    .block-card {
+      background: linear-gradient(135deg, rgba(255,110,199,0.1), rgba(124,92,255,0.1));
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .block-name {
+      font-size: 14px;
+      color: #9aa6c0;
+      margin-bottom: 8px;
+    }
+    
+    .block-efficiency {
+      font-size: 36px;
+      font-weight: 700;
+      color: #ffd166;
+    }
+    
+    .filter-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .filter-bar select,
+    .filter-bar input {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.03);
+      color: #fff;
+      font-size: 13px;
+    }
+    
+    .chart-container {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    
+    .no-data {
+      text-align: center;
+      padding: 40px;
+      color: #9aa6c0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-blobs" aria-hidden="true">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+  </div>
+  
+  <header class="top">
+    <div class="wrap">
+      <div class="brand">
+        <div class="logo">
+          <img src="https://cdnb.uns.ac.id/cdc/image/2022/03/tE6YvomIvLcTJTHcC8GB2acYc5Xv9W60.png" alt="Logo" style="width:50px;height:50px;border-radius:10px;object-fit:contain;box-shadow:0 5px 15px rgba(0,0,0,0.4)" />
+        </div>
+        <div>
+          <div class="greeting">⚡ Efisiensi Mesin</div>
+          <div class="subtitle">Monitoring Efisiensi Per Shift</div>
+        </div>
+      </div>
+      <div class="meta">
+        <div id="clock" class="clock" aria-live="polite">--:--:--</div>
+        <div id="date" class="date"></div>
+        <button onclick="window.location.href='layout.html'" class="chip" style="margin-top: 8px;">← Kembali</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Summary Blok -->
+    <section class="block-summary">
+      <div class="block-card">
+        <div class="block-name">🏭 BLOK A</div>
+        <div class="block-efficiency" id="block-a-eff">0%</div>
+      </div>
+      <div class="block-card">
+        <div class="block-name">🏭 BLOK B</div>
+        <div class="block-efficiency" id="block-b-eff">0%</div>
+      </div>
+      <div class="block-card">
+        <div class="block-name">🏭 BLOK C</div>
+        <div class="block-efficiency" id="block-c-eff">0%</div>
+      </div>
+      <div class="block-card">
+        <div class="block-name">🏭 BLOK D</div>
+        <div class="block-efficiency" id="block-d-eff">0%</div>
+      </div>
+    </section>
+
+    <!-- Filter & Actions -->
+    <section class="controls">
+      <div class="filter-bar">
+        <label style="display: flex; gap: 8px; align-items: center;">
+          Tanggal:
+          <input type="date" id="date-filter" style="flex: 1;" />
+        </label>
+        
+        <label style="display: flex; gap: 8px; align-items: center;">
+          Blok:
+          <select id="block-filter">
+            <option value="">Semua Blok</option>
+            <option value="A">Blok A</option>
+            <option value="B">Blok B</option>
+            <option value="C">Blok C</option>
+            <option value="D">Blok D</option>
+          </select>
+        </label>
+        
+        <label style="display: flex; gap: 8px; align-items: center;">
+          Urutkan:
+          <select id="sort-filter">
+            <option value="machine">Nomor Mesin</option>
+            <option value="efficiency">Efisiensi (Tinggi-Rendah)</option>
+            <option value="efficiency-low">Efisiensi (Rendah-Tinggi)</option>
+          </select>
+        </label>
+        
+        <button id="import-efficiency" class="chip">📤 Import Excel</button>
+        <button id="export-efficiency" class="chip">📥 Export Excel</button>
+      </div>
+    </section>
+
+    <!-- Grafik Trend -->
+    <section class="chart-container">
+      <h3 style="margin-bottom: 16px;">📊 Trend Efisiensi Harian</h3>
+      <canvas id="efficiency-trend-chart" height="80"></canvas>
+    </section>
+
+    <!-- Grafik Per Blok -->
+    <section class="chart-container">
+      <h3 style="margin-bottom: 16px;">📊 Efisiensi Per Blok</h3>
+      <canvas id="block-efficiency-chart" height="60"></canvas>
+    </section>
+
+    <!-- Grid Efisiensi Mesin -->
+    <section>
+      <h3 style="margin-bottom: 16px;">🎯 Efisiensi Per Mesin</h3>
+      <div id="efficiency-grid" class="efficiency-grid">
+        <div class="no-data">
+          Belum ada data efisiensi. Klik tombol Import atau input manual di halaman utama.
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">© 2025 — Dibuat oleh Didin</footer>
+
+  <!-- Hidden file input -->
+  <input type="file" id="efficiency-file-input" accept=".xlsx,.xls" style="display: none;" />
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+  <script src="supabase_sync_fixed.js"></script>
+  <script src="layout_app.js"></script>
+  <script src="efficiency_system.js"></script>
+  <script src="efficiency_page.js"></script>
+</body>
+</html>
