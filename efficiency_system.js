@@ -1,9 +1,9 @@
-// ============ EFFICIENCY MANAGEMENT SYSTEM ============
+// ============ EFFICIENCY MANAGEMENT SYSTEM - FIXED ============
 // Mengelola efisiensi mesin per shift (A, B, C)
 
-const EFFICIENCY_KEY = 'machine_efficiency_v1'
+const EFFICIENCY_KEY = 'machine_efficiency_v2'
 
-// Data structure: { machineId: { date: { shiftA: 60, shiftB: 65, shiftC: 70, global: 65 } } }
+// Data structure: { machineId: { date: { shiftA, shiftB, shiftC, global, editor, timestamp } } }
 let efficiencyData = {}
 
 // ============ LOAD & SAVE ============
@@ -12,21 +12,24 @@ function loadEfficiencyData() {
     const raw = localStorage.getItem(EFFICIENCY_KEY)
     if (raw) {
       efficiencyData = JSON.parse(raw)
-      console.log('✅ Loaded efficiency data')
+      console.log('✅ Loaded efficiency data:', Object.keys(efficiencyData).length, 'machines')
+      return efficiencyData
     }
   } catch (e) {
     console.error('❌ Error loading efficiency:', e)
-    efficiencyData = {}
   }
+  efficiencyData = {}
+  return efficiencyData
 }
 
 function saveEfficiencyData() {
   try {
     localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
+    console.log('💾 Efficiency data saved')
     
     // Sync to cloud if available
-    if (typeof saveEfficiencyToCloud !== 'undefined' && window.isCloudAvailable) {
-      saveEfficiencyToCloud(efficiencyData).catch(e => 
+    if (typeof saveEfficiencyToCloudV2 !== 'undefined' && window.isCloudAvailable) {
+      saveEfficiencyToCloudV2(efficiencyData).catch(e => 
         console.warn('Cloud efficiency sync failed:', e)
       )
     }
@@ -37,28 +40,31 @@ function saveEfficiencyData() {
 
 // ============ EFFICIENCY OPERATIONS ============
 
-// Set efisiensi untuk mesin tertentu
-function setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC) {
+// Set efisiensi untuk mesin tertentu pada tanggal tertentu
+function setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, editor) {
   if (!efficiencyData[machineId]) {
     efficiencyData[machineId] = {}
   }
   
   // Calculate global efficiency (average of all shifts)
-  const shifts = [shiftA, shiftB, shiftC].filter(s => s !== null && s !== undefined && !isNaN(s))
+  const shifts = [shiftA, shiftB, shiftC].filter(s => s !== null && s !== undefined && !isNaN(s) && s > 0)
   const global = shifts.length > 0 
     ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
     : 0
   
   efficiencyData[machineId][date] = {
-    shiftA: shiftA || 0,
-    shiftB: shiftB || 0,
-    shiftC: shiftC || 0,
+    shiftA: parseFloat(shiftA) || 0,
+    shiftB: parseFloat(shiftB) || 0,
+    shiftC: parseFloat(shiftC) || 0,
     global: Math.round(global * 10) / 10,
     timestamp: new Date().toISOString(),
-    editor: getCurrentUserId()
+    editor: editor || getCurrentUserId()
   }
   
   saveEfficiencyData()
+  
+  console.log(`✏️ Set efficiency for machine ${machineId} on ${date}:`, efficiencyData[machineId][date])
+  
   return efficiencyData[machineId][date]
 }
 
@@ -79,16 +85,16 @@ function getAllMachineEfficiency(machineId) {
   return efficiencyData[machineId] || {}
 }
 
-// Get efisiensi global untuk blok
+// Get efisiensi global untuk blok pada tanggal tertentu
 function getBlockEfficiency(blockName, date) {
-  const today = date || new Date().toISOString().split('T')[0]
+  const targetDate = date || new Date().toISOString().split('T')[0]
   const blockMachines = getMachinesInBlock(blockName)
   
   let totalGlobal = 0
   let count = 0
   
   blockMachines.forEach(machineId => {
-    const eff = getMachineEfficiency(machineId, today)
+    const eff = getMachineEfficiency(machineId, targetDate)
     if (eff && eff.global > 0) {
       totalGlobal += eff.global
       count++
@@ -114,6 +120,24 @@ function getMachinesInBlock(blockName) {
   return machines
 }
 
+// Get all machines that have efficiency data for a specific date
+function getMachinesWithEfficiency(date) {
+  const targetDate = date || new Date().toISOString().split('T')[0]
+  const machinesWithData = []
+  
+  Object.keys(efficiencyData).forEach(machineId => {
+    const eff = getMachineEfficiency(machineId, targetDate)
+    if (eff && eff.global > 0) {
+      machinesWithData.push({
+        id: parseInt(machineId),
+        ...eff
+      })
+    }
+  })
+  
+  return machinesWithData
+}
+
 // ============ BATCH IMPORT FROM EXCEL ============
 async function importEfficiencyFromExcel(file) {
   return new Promise((resolve, reject) => {
@@ -134,7 +158,7 @@ async function importEfficiencyFromExcel(file) {
         rows.forEach((row, index) => {
           try {
             const machineId = parseInt(row['Machine ID'] || row['Mesin'] || row['ID'])
-            const date = row['Date'] || row['Tanggal']
+            let date = row['Date'] || row['Tanggal']
             const shiftA = parseFloat(row['Shift A'] || row['A'] || 0)
             const shiftB = parseFloat(row['Shift B'] || row['B'] || 0)
             const shiftC = parseFloat(row['Shift C'] || row['C'] || 0)
@@ -145,14 +169,17 @@ async function importEfficiencyFromExcel(file) {
             }
             
             // Convert date to ISO format
-            let dateStr = date
             if (date instanceof Date) {
-              dateStr = date.toISOString().split('T')[0]
+              date = date.toISOString().split('T')[0]
             } else if (typeof date === 'string') {
-              dateStr = new Date(date).toISOString().split('T')[0]
+              date = new Date(date).toISOString().split('T')[0]
+            } else if (typeof date === 'number') {
+              // Excel date serial number
+              const excelDate = new Date((date - 25569) * 86400 * 1000)
+              date = excelDate.toISOString().split('T')[0]
             }
             
-            setMachineEfficiency(machineId, dateStr, shiftA, shiftB, shiftC)
+            setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, 'Excel Import')
             imported++
           } catch (err) {
             errors.push(`Row ${index + 2}: ${err.message}`)
@@ -179,8 +206,8 @@ async function importEfficiencyFromExcel(file) {
 // ============ EXPORT EFFICIENCY TO EXCEL ============
 async function exportEfficiencyToExcel(dateFrom, dateTo) {
   if (!window.ExcelJS && typeof XLSX === 'undefined') {
-    showToast('Excel library not available', 'warn')
-    return
+    console.error('Excel library not available')
+    return false
   }
   
   const pad = n => String(n).padStart(2, '0')
@@ -216,9 +243,15 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
   // Sort by date and machine ID
   exportData.sort((a, b) => {
     if (a.Date !== b.Date) return a.Date.localeCompare(b.Date)
-    return a['Machine ID'] - b['Machine ID']
+    return parseInt(a['Machine ID']) - parseInt(b['Machine ID'])
   })
   
+  if (exportData.length === 0) {
+    console.warn('No data to export')
+    return false
+  }
+  
+  // Use ExcelJS if available
   if (window.ExcelJS) {
     try {
       const wb = new ExcelJS.Workbook()
@@ -241,7 +274,7 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
       ws.getRow(1).fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFD166' }
+        fgColor: { argb: 'FFFFD166' }
       }
       
       exportData.forEach(row => ws.addRow(row))
@@ -255,8 +288,8 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
       a.click()
       URL.revokeObjectURL(url)
       
-      showToast(`Excel exported: ${filename}`, 'success')
-      return
+      console.log(`✅ Excel exported: ${filename}`)
+      return true
     } catch (err) {
       console.error('ExcelJS export failed:', err)
     }
@@ -268,8 +301,11 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Efficiency Data')
     XLSX.writeFile(wb, filename)
-    showToast(`Excel exported: ${filename}`, 'success')
+    console.log(`✅ Excel exported: ${filename}`)
+    return true
   }
+  
+  return false
 }
 
 // ============ UI COMPONENTS ============
@@ -278,8 +314,8 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
 function openEfficiencyModal(machineId) {
   const modal = document.getElementById('efficiency-modal')
   if (!modal) {
-    createEfficiencyModal()
-    return openEfficiencyModal(machineId)
+    console.warn('Efficiency modal not found in DOM')
+    return
   }
   
   modal.dataset.machineId = machineId
@@ -303,17 +339,20 @@ function openEfficiencyModal(machineId) {
     document.getElementById('eff-shift-c')
   ]
   
+  const updateGlobal = () => {
+    const a = parseFloat(inputs[0].value) || 0
+    const b = parseFloat(inputs[1].value) || 0
+    const c = parseFloat(inputs[2].value) || 0
+    const shifts = [a, b, c].filter(s => s > 0)
+    const global = shifts.length > 0 
+      ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
+      : 0
+    document.getElementById('eff-global').textContent = Math.round(global * 10) / 10 + '%'
+  }
+  
   inputs.forEach(input => {
-    input.addEventListener('input', () => {
-      const a = parseFloat(inputs[0].value) || 0
-      const b = parseFloat(inputs[1].value) || 0
-      const c = parseFloat(inputs[2].value) || 0
-      const shifts = [a, b, c].filter(s => s > 0)
-      const global = shifts.length > 0 
-        ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
-        : 0
-      document.getElementById('eff-global').textContent = Math.round(global * 10) / 10 + '%'
-    })
+    input.removeEventListener('input', updateGlobal)
+    input.addEventListener('input', updateGlobal)
   })
 }
 
@@ -322,55 +361,7 @@ function closeEfficiencyModal() {
   if (modal) modal.classList.add('hidden')
 }
 
-function createEfficiencyModal() {
-  const modal = document.createElement('div')
-  modal.id = 'efficiency-modal'
-  modal.className = 'modal hidden'
-  modal.innerHTML = `
-    <div class="modal-card" style="max-width: 480px;">
-      <h3>⚡ Efisiensi Mesin <span id="eff-machine-id"></span></h3>
-      
-      <label>Tanggal:
-        <input type="date" id="eff-date" style="width: 100%;" />
-      </label>
-      
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0;">
-        <label style="margin: 0;">
-          <div style="font-size: 11px; color: #9aa6c0; margin-bottom: 4px;">SHIFT A (%)</div>
-          <input type="number" id="eff-shift-a" min="0" max="100" step="0.1" placeholder="0" style="width: 100%;" />
-        </label>
-        
-        <label style="margin: 0;">
-          <div style="font-size: 11px; color: #9aa6c0; margin-bottom: 4px;">SHIFT B (%)</div>
-          <input type="number" id="eff-shift-b" min="0" max="100" step="0.1" placeholder="0" style="width: 100%;" />
-        </label>
-        
-        <label style="margin: 0;">
-          <div style="font-size: 11px; color: #9aa6c0; margin-bottom: 4px;">SHIFT C (%)</div>
-          <input type="number" id="eff-shift-c" min="0" max="100" step="0.1" placeholder="0" style="width: 100%;" />
-        </label>
-      </div>
-      
-      <div style="padding: 16px; background: rgba(255, 209, 102, 0.1); border: 1px solid rgba(255, 209, 102, 0.3); border-radius: 8px; text-align: center; margin-bottom: 16px;">
-        <div style="font-size: 11px; color: #9aa6c0; margin-bottom: 4px;">EFISIENSI GLOBAL</div>
-        <div style="font-size: 32px; font-weight: 700; color: #ffd166;" id="eff-global">0%</div>
-      </div>
-      
-      <div class="actions">
-        <button id="save-efficiency" class="btn primary">💾 Simpan</button>
-        <button id="close-efficiency-modal" class="btn">Batal</button>
-      </div>
-    </div>
-  `
-  
-  document.body.appendChild(modal)
-  
-  // Event listeners
-  document.getElementById('save-efficiency').addEventListener('click', saveEfficiency)
-  document.getElementById('close-efficiency-modal').addEventListener('click', closeEfficiencyModal)
-}
-
-async function saveEfficiency() {
+async function saveEfficiencyFromModal() {
   const modal = document.getElementById('efficiency-modal')
   const machineId = parseInt(modal.dataset.machineId)
   const date = document.getElementById('eff-date').value
@@ -379,7 +370,9 @@ async function saveEfficiency() {
   const shiftC = parseFloat(document.getElementById('eff-shift-c').value) || 0
   
   if (!date) {
-    showToast('Pilih tanggal terlebih dahulu', 'warn')
+    if (typeof showToast !== 'undefined') {
+      showToast('Pilih tanggal terlebih dahulu', 'warn')
+    }
     return
   }
   
@@ -388,11 +381,18 @@ async function saveEfficiency() {
   console.log('✅ Efficiency saved:', machineId, date, result)
   
   // Update UI
-  if (window.renderGrid) window.renderGrid()
-  if (window.updateEfficiencyChart) window.updateEfficiencyChart()
+  if (typeof renderGrid === 'function') renderGrid()
+  if (typeof updateChart === 'function') updateChart()
+  if (typeof renderEfficiencyGrid === 'function') renderEfficiencyGrid()
+  if (typeof updateBlockSummary === 'function') updateBlockSummary()
+  if (typeof updateTrendChart === 'function') updateTrendChart()
+  if (typeof updateBlockChart === 'function') updateBlockChart()
   
   closeEfficiencyModal()
-  showToast(`Efisiensi mesin ${machineId} disimpan ✅`, 'success')
+  
+  if (typeof showToast !== 'undefined') {
+    showToast(`Efisiensi mesin ${machineId} disimpan ✅`, 'success')
+  }
 }
 
 // Add efficiency indicator to machine box
@@ -400,6 +400,10 @@ function addEfficiencyIndicator(machineBox, machineId) {
   const eff = getTodayEfficiency(machineId)
   
   if (eff && eff.global > 0) {
+    // Remove old indicator if exists
+    const oldIndicator = machineBox.querySelector('.efficiency-indicator')
+    if (oldIndicator) oldIndicator.remove()
+    
     const indicator = document.createElement('div')
     indicator.className = 'efficiency-indicator'
     indicator.style.cssText = `
@@ -412,10 +416,60 @@ function addEfficiencyIndicator(machineBox, machineId) {
       padding: 2px 4px;
       border-radius: 3px;
       font-weight: 700;
+      z-index: 10;
     `
     indicator.textContent = eff.global + '%'
     machineBox.appendChild(indicator)
   }
+}
+
+// Setup efficiency modal event listeners (call once on page load)
+function setupEfficiencyModalListeners() {
+  const saveBtn = document.getElementById('save-efficiency')
+  const closeBtn = document.getElementById('close-efficiency-modal')
+  
+  if (saveBtn) {
+    saveBtn.removeEventListener('click', saveEfficiencyFromModal)
+    saveBtn.addEventListener('click', saveEfficiencyFromModal)
+  }
+  
+  if (closeBtn) {
+    closeBtn.removeEventListener('click', closeEfficiencyModal)
+    closeBtn.addEventListener('click', closeEfficiencyModal)
+  }
+}
+
+// ============ HELPER ============
+function getCurrentUserId() {
+  return localStorage.getItem('currentUserId') || 
+         localStorage.getItem('current_user') || 
+         'unknown'
+}
+
+function getDeviceId() {
+  let deviceId = localStorage.getItem('device_id')
+  if (!deviceId) {
+    deviceId = 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now()
+    localStorage.setItem('device_id', deviceId)
+  }
+  return deviceId
+}
+
+function getDeviceName() {
+  let deviceName = localStorage.getItem('device_name')
+  if (!deviceName) {
+    const ua = navigator.userAgent
+    let osName = 'Unknown'
+    if (ua.indexOf('Windows') > -1) osName = 'Windows PC'
+    else if (ua.indexOf('Mac') > -1) osName = 'Mac'
+    else if (ua.indexOf('Linux') > -1) osName = 'Linux'
+    else if (ua.indexOf('Android') > -1) osName = 'Android'
+    else if (ua.indexOf('iPhone') > -1) osName = 'iPhone'
+    else if (ua.indexOf('iPad') > -1) osName = 'iPad'
+    deviceName = `${osName} (${new Date().toLocaleDateString()})`
+    localStorage.setItem('device_name', deviceName)
+  }
+  return deviceName
 }
 
 // ============ INITIALIZE ============
@@ -428,12 +482,17 @@ window.efficiencySystem = {
   getTodayEfficiency,
   getAllMachineEfficiency,
   getBlockEfficiency,
+  getMachinesWithEfficiency,
   importEfficiencyFromExcel,
   exportEfficiencyToExcel,
   openEfficiencyModal,
+  closeEfficiencyModal,
+  saveEfficiencyFromModal,
   addEfficiencyIndicator,
   loadEfficiencyData,
-  saveEfficiencyData
+  saveEfficiencyData,
+  setupEfficiencyModalListeners,
+  efficiencyData // Expose data for debugging
 }
 
-console.log('✅ Efficiency system loaded')
+console.log('✅ Efficiency system loaded - Fixed version')
