@@ -1,3 +1,16 @@
+// Check if renderGrid exists before using
+let originalRenderGrid = null
+
+if (typeof renderGrid === 'function') {
+  originalRenderGrid = renderGrid
+} else {
+  console.warn('⚠️ renderGrid not found, creating stub')
+  // Create a stub function
+  window.renderGrid = function() {
+    console.log('renderGrid stub called')
+  }
+  originalRenderGrid = window.renderGrid
+}
 // Add this to the existing layout_app.js
 
 // ============ EFFICIENCY INTEGRATION ============
