@@ -16,7 +16,6 @@ if (typeof renderGrid === 'function') {
 // ============ EFFICIENCY INTEGRATION ============
 
 // Update renderGrid function to include efficiency indicators
-const originalRenderGrid = renderGrid
 
 renderGrid = function() {
   originalRenderGrid.call(this)
