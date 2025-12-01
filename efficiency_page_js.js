@@ -1,4 +1,4 @@
-// ============ EFFICIENCY PAGE LOGIC ============
+// ============ EFFICIENCY PAGE LOGIC - FIXED ============
 // Menampilkan dan mengelola data efisiensi
 
 const BLOCKS = {
@@ -40,15 +40,25 @@ function getMachineBlock(machineNum) {
 
 function renderEfficiencyGrid() {
   const grid = document.getElementById('efficiency-grid')
-  const dateFilter = document.getElementById('date-filter').value
-  const blockFilter = document.getElementById('block-filter').value
-  const sortFilter = document.getElementById('sort-filter').value
+  const dateFilter = document.getElementById('date-filter')
+  const blockFilter = document.getElementById('block-filter')
+  const sortFilter = document.getElementById('sort-filter')
   
-  if (!grid) return
+  if (!grid) {
+    console.error('efficiency-grid element not found')
+    return
+  }
   
-  const date = dateFilter || new Date().toISOString().split('T')[0]
+  const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
-  // Get all machines with efficiency data
+  // Check if efficiency system is loaded
+  if (!window.efficiencySystem) {
+    console.error('Efficiency system not loaded')
+    grid.innerHTML = '<div class="no-data">❌ Efficiency system not loaded</div>'
+    return
+  }
+  
+  // Get all machines with efficiency data for this date
   const machinesWithData = []
   
   for (let i = 1; i <= 640; i++) {
@@ -56,9 +66,9 @@ function renderEfficiencyGrid() {
     const block = getMachineBlock(i)
     
     // Filter by block
-    if (blockFilter && block !== blockFilter) continue
+    if (blockFilter && blockFilter.value && block !== blockFilter.value) continue
     
-    if (eff) {
+    if (eff && eff.global > 0) {
       machinesWithData.push({
         id: i,
         block: block,
@@ -68,9 +78,9 @@ function renderEfficiencyGrid() {
   }
   
   // Sort
-  if (sortFilter === 'efficiency') {
+  if (sortFilter && sortFilter.value === 'efficiency') {
     machinesWithData.sort((a, b) => b.global - a.global)
-  } else if (sortFilter === 'efficiency-low') {
+  } else if (sortFilter && sortFilter.value === 'efficiency-low') {
     machinesWithData.sort((a, b) => a.global - b.global)
   } else {
     machinesWithData.sort((a, b) => a.id - b.id)
@@ -78,7 +88,7 @@ function renderEfficiencyGrid() {
   
   // Render
   if (machinesWithData.length === 0) {
-    grid.innerHTML = '<div class="no-data">Tidak ada data efisiensi untuk tanggal ini.</div>'
+    grid.innerHTML = `<div class="no-data">Tidak ada data efisiensi untuk tanggal ${date}.</div>`
     return
   }
   
@@ -91,6 +101,8 @@ function renderEfficiencyGrid() {
     let effClass = 'medium'
     if (machine.global >= 80) effClass = 'high'
     else if (machine.global < 60) effClass = 'low'
+    
+    const timestamp = machine.timestamp ? new Date(machine.timestamp).toLocaleString('id-ID') : 'Unknown'
     
     card.innerHTML = `
       <div class="efficiency-card-header">
@@ -117,26 +129,45 @@ function renderEfficiencyGrid() {
       </div>
       
       <div style="margin-top: 12px; font-size: 10px; color: #9aa6c0;">
-        ${machine.editor || 'Unknown'} · ${machine.timestamp ? new Date(machine.timestamp).toLocaleString() : ''}
+        ${machine.editor || 'Unknown'} · ${timestamp}
       </div>
     `
+    
+    // Add click handler to edit
+    card.style.cursor = 'pointer'
+    card.addEventListener('click', () => {
+      if (window.efficiencySystem) {
+        window.efficiencySystem.openEfficiencyModal(machine.id)
+      }
+    })
     
     grid.appendChild(card)
   })
 }
 
 function updateBlockSummary() {
-  const date = document.getElementById('date-filter').value || new Date().toISOString().split('T')[0]
+  const dateFilter = document.getElementById('date-filter')
+  const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
+  
+  if (!window.efficiencySystem) {
+    console.error('Efficiency system not loaded')
+    return
+  }
   
   const blockA = window.efficiencySystem.getBlockEfficiency('A', date)
   const blockB = window.efficiencySystem.getBlockEfficiency('B', date)
   const blockC = window.efficiencySystem.getBlockEfficiency('C', date)
   const blockD = window.efficiencySystem.getBlockEfficiency('D', date)
   
-  document.getElementById('block-a-eff').textContent = blockA + '%'
-  document.getElementById('block-b-eff').textContent = blockB + '%'
-  document.getElementById('block-c-eff').textContent = blockC + '%'
-  document.getElementById('block-d-eff').textContent = blockD + '%'
+  const elA = document.getElementById('block-a-eff')
+  const elB = document.getElementById('block-b-eff')
+  const elC = document.getElementById('block-c-eff')
+  const elD = document.getElementById('block-d-eff')
+  
+  if (elA) elA.textContent = blockA + '%'
+  if (elB) elB.textContent = blockB + '%'
+  if (elC) elC.textContent = blockC + '%'
+  if (elD) elD.textContent = blockD + '%'
 }
 
 function updateTrendChart() {
@@ -144,6 +175,11 @@ function updateTrendChart() {
   if (!canvas) return
   
   const ctx = canvas.getContext('2d')
+  
+  if (!window.efficiencySystem) {
+    console.error('Efficiency system not loaded')
+    return
+  }
   
   // Get last 7 days
   const dates = []
@@ -220,7 +256,13 @@ function updateBlockChart() {
   if (!canvas) return
   
   const ctx = canvas.getContext('2d')
-  const date = document.getElementById('date-filter').value || new Date().toISOString().split('T')[0]
+  const dateFilter = document.getElementById('date-filter')
+  const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
+  
+  if (!window.efficiencySystem) {
+    console.error('Efficiency system not loaded')
+    return
+  }
   
   const blockEfficiency = {
     'Blok A': window.efficiencySystem.getBlockEfficiency('A', date),
@@ -377,6 +419,9 @@ function attachEventListeners() {
           updateBlockSummary()
           updateTrendChart()
           updateBlockChart()
+          
+          // Clear file input
+          e.target.value = ''
         } catch (error) {
           console.error('Import error:', error)
           showToast('❌ Import failed: ' + error.message, 'warn')
@@ -390,7 +435,12 @@ function attachEventListeners() {
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
       try {
-        await window.efficiencySystem.exportEfficiencyToExcel()
+        const success = await window.efficiencySystem.exportEfficiencyToExcel()
+        if (success) {
+          showToast('✅ Export berhasil', 'success')
+        } else {
+          showToast('❌ Export gagal', 'warn')
+        }
       } catch (error) {
         console.error('Export error:', error)
         showToast('❌ Export failed', 'warn')
@@ -404,10 +454,21 @@ function attachEventListeners() {
 function initialize() {
   console.log('🚀 Initializing efficiency page...')
   
-  // Load efficiency data
-  if (window.efficiencySystem) {
-    window.efficiencySystem.loadEfficiencyData()
+  // Check if efficiency system is available
+  if (!window.efficiencySystem) {
+    console.error('❌ Efficiency system not loaded')
+    const grid = document.getElementById('efficiency-grid')
+    if (grid) {
+      grid.innerHTML = '<div class="no-data">❌ Efficiency system not loaded. Please check console.</div>'
+    }
+    return
   }
+  
+  // Load efficiency data
+  window.efficiencySystem.loadEfficiencyData()
+  
+  // Setup modal listeners
+  window.efficiencySystem.setupEfficiencyModalListeners()
   
   // Setup UI
   attachEventListeners()
@@ -436,3 +497,13 @@ setInterval(() => {
   updateTrendChart()
   updateBlockChart()
 }, 30000)
+
+// Expose functions globally for debugging
+window.efficiencyPage = {
+  renderEfficiencyGrid,
+  updateBlockSummary,
+  updateTrendChart,
+  updateBlockChart
+}
+
+console.log('✅ Efficiency page script loaded')
