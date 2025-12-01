@@ -1239,12 +1239,7 @@ window._layout = {
   machines, 
   constructions, 
   updateChart,
-  isCloudAvailable: () => window.isCloudAvailable,
-  efficiencyData,
-  setMachineShiftEfficiency,
-  setMachineAllShifts,
-  getGlobalEfficiency,
-  getEfficiencyByBlock
+  isCloudAvailable: () => window.isCloudAvailable
 }
 // ============ EFFICIENCY SYSTEM CHECK ============
 if (window.efficiencySystem) {
@@ -1252,6 +1247,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
