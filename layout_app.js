@@ -1,4 +1,28 @@
+// Stub functions untuk backward compatibility
+function setMachineShiftEfficiency(machineId, shift, efficiency) {
+  console.warn('⚠️ setMachineShiftEfficiency is deprecated, use efficiencySystem instead')
+  if (!window.efficiencySystem) return
+  
+  const today = new Date().toISOString().split('T')[0]
+  const eff = window.efficiencySystem.getMachineEfficiency(machineId, today) || {
+    shiftA: 0, shiftB: 0, shiftC: 0
+  }
+  
+  if (shift === 'A') eff.shiftA = efficiency
+  if (shift === 'B') eff.shiftB = efficiency
+  if (shift === 'C') eff.shiftC = efficiency
+  
+  window.efficiencySystem.setMachineEfficiency(
+    machineId, today, eff.shiftA, eff.shiftB, eff.shiftC
+  )
+}
 
+function setMachineAllShifts(machineId, a, b, c) {
+  console.warn('⚠️ setMachineAllShifts is deprecated')
+  if (!window.efficiencySystem) return
+  const today = new Date().toISOString().split('T')[0]
+  window.efficiencySystem.setMachineEfficiency(machineId, today, a, b, c)
+}
 // Layout mesin app - Fixed Real-time Sync
 const $ = id => document.getElementById(id)
 
@@ -1228,6 +1252,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
