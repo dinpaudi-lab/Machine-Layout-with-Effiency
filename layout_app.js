@@ -1305,7 +1305,12 @@ window._layout = {
   machines, 
   constructions, 
   updateChart,
-  isCloudAvailable: () => window.isCloudAvailable
+  isCloudAvailable: () => window.isCloudAvailable,
+  efficiencyData,  // ← HAPUS
+  setMachineShiftEfficiency,  // ← HAPUS
+  setMachineAllShifts,  // ← HAPUS
+  getGlobalEfficiency,  // ← HAPUS
+  getEfficiencyByBlock  // ← HAPUS
 }
 // ============ EFFICIENCY SYSTEM CHECK ============
 if (window.efficiencySystem) {
@@ -1313,6 +1318,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
