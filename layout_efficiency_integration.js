@@ -133,22 +133,13 @@ function showEfficiencyContextMenu(x, y, machineId) {
   }, 100)
 }
 
-// Add efficiency button to controls
-const controlsSection = document.querySelector('.controls .right')
-if (controlsSection) {
-  const efficiencyBtn = document.createElement('button')
-  efficiencyBtn.id = 'efficiency-page-btn'
-  efficiencyBtn.className = 'chip'
-  efficiencyBtn.title = 'Lihat halaman efisiensi'
-  efficiencyBtn.style.cssText = 'background: linear-gradient(90deg, #ffd166, #ff6ec7);'
-  efficiencyBtn.innerHTML = '⚡ Efisiensi'
+// Setup efficiency button click handler (button already exists in HTML)
+const efficiencyBtn = document.getElementById('efficiency-page-btn')
+if (efficiencyBtn) {
   efficiencyBtn.addEventListener('click', () => {
     window.location.href = 'efficiency.html'
   })
-  
-  controlsSection.insertBefore(efficiencyBtn, controlsSection.firstChild)
 }
-
 // Update history to include efficiency changes
 const originalAddHistory = addHistory
 
