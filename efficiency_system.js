@@ -425,17 +425,41 @@ function addEfficiencyIndicator(machineBox, machineId) {
 
 // Setup efficiency modal event listeners (call once on page load)
 function setupEfficiencyModalListeners() {
+  console.log('🔧 Setting up efficiency modal listeners...')
+  
   const saveBtn = document.getElementById('save-efficiency')
   const closeBtn = document.getElementById('close-efficiency-modal')
   
   if (saveBtn) {
-    saveBtn.removeEventListener('click', saveEfficiencyFromModal)
-    saveBtn.addEventListener('click', saveEfficiencyFromModal)
+    // Remove any existing listeners by cloning
+    const newSaveBtn = saveBtn.cloneNode(true)
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn)
+    
+    newSaveBtn.addEventListener('click', saveEfficiencyFromModal)
+    console.log('✅ Save button listener attached')
+  } else {
+    console.warn('⚠️ save-efficiency button not found')
   }
   
   if (closeBtn) {
-    closeBtn.removeEventListener('click', closeEfficiencyModal)
-    closeBtn.addEventListener('click', closeEfficiencyModal)
+    // Remove any existing listeners by cloning
+    const newCloseBtn = closeBtn.cloneNode(true)
+    closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn)
+    
+    newCloseBtn.addEventListener('click', closeEfficiencyModal)
+    console.log('✅ Close button listener attached')
+  } else {
+    console.warn('⚠️ close-efficiency-modal button not found')
+  }
+  
+  // Also setup modal backdrop click to close
+  const modal = document.getElementById('efficiency-modal')
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeEfficiencyModal()
+      }
+    })
   }
 }
 
