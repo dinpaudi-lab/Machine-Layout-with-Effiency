@@ -140,6 +140,48 @@ if (efficiencyBtn) {
     window.location.href = 'efficiency.html'
   })
 }
+
+// ============ SETUP EFFICIENCY MODAL LISTENERS ============
+// Make sure modal buttons work in layout.html
+function setupEfficiencyModalInLayout() {
+  const saveBtn = document.getElementById('save-efficiency')
+  const closeBtn = document.getElementById('close-efficiency-modal')
+  
+  if (saveBtn) {
+    // Remove old listeners
+    const newSaveBtn = saveBtn.cloneNode(true)
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn)
+    
+    // Add new listener
+    newSaveBtn.addEventListener('click', async () => {
+      if (window.efficiencySystem) {
+        await window.efficiencySystem.saveEfficiencyFromModal()
+      }
+    })
+    console.log('✅ Save efficiency button ready')
+  }
+  
+  if (closeBtn) {
+    // Remove old listeners
+    const newCloseBtn = closeBtn.cloneNode(true)
+    closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn)
+    
+    // Add new listener
+    newCloseBtn.addEventListener('click', () => {
+      if (window.efficiencySystem) {
+        window.efficiencySystem.closeEfficiencyModal()
+      }
+    })
+    console.log('✅ Close efficiency button ready')
+  }
+}
+
+// Call setup when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupEfficiencyModalInLayout)
+} else {
+  setupEfficiencyModalInLayout()
+}
 // Update history to include efficiency changes
 const originalAddHistory = addHistory
 
