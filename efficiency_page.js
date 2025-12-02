@@ -467,8 +467,9 @@ function initialize() {
   // Load efficiency data
   window.efficiencySystem.loadEfficiencyData()
   
-  // Setup modal listeners
-  window.efficiencySystem.setupEfficiencyModalListeners()
+  // DON'T setup modal listeners here (not in efficiency.html)
+  // Modal is only in layout.html
+  // window.efficiencySystem.setupEfficiencyModalListeners()
   
   // Setup UI
   attachEventListeners()
@@ -480,7 +481,6 @@ function initialize() {
   
   console.log('✅ Efficiency page initialized')
 }
-
 // Start
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initialize)
