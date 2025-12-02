@@ -920,7 +920,7 @@ async function initializeApp() {
     showToast('Mode Offline', 'warn')
   }
   
-  // Render UI
+// Render UI
   renderLegend()
   renderGrid()
   renderConstructList()
@@ -930,6 +930,12 @@ async function initializeApp() {
   updateGreeting()
   updateClock()
   attachEventListeners()
+  
+  // Setup efficiency modal listeners
+  if (window.efficiencySystem && window.efficiencySystem.setupEfficiencyModalListeners) {
+    window.efficiencySystem.setupEfficiencyModalListeners()
+    console.log('✅ Efficiency modal listeners initialized')
+  }
   
   console.log('✅ App initialized')
 }
@@ -1318,6 +1324,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
