@@ -430,6 +430,12 @@ function setupEfficiencyModalListeners() {
   const saveBtn = document.getElementById('save-efficiency')
   const closeBtn = document.getElementById('close-efficiency-modal')
   
+  // Only proceed if buttons exist (they exist in layout.html, not efficiency.html)
+  if (!saveBtn && !closeBtn) {
+    console.log('ℹ️ Efficiency modal buttons not found (probably on efficiency.html page)')
+    return
+  }
+  
   if (saveBtn) {
     // Remove any existing listeners by cloning
     const newSaveBtn = saveBtn.cloneNode(true)
@@ -437,8 +443,6 @@ function setupEfficiencyModalListeners() {
     
     newSaveBtn.addEventListener('click', saveEfficiencyFromModal)
     console.log('✅ Save button listener attached')
-  } else {
-    console.warn('⚠️ save-efficiency button not found')
   }
   
   if (closeBtn) {
@@ -448,8 +452,6 @@ function setupEfficiencyModalListeners() {
     
     newCloseBtn.addEventListener('click', closeEfficiencyModal)
     console.log('✅ Close button listener attached')
-  } else {
-    console.warn('⚠️ close-efficiency-modal button not found')
   }
   
   // Also setup modal backdrop click to close
@@ -460,6 +462,7 @@ function setupEfficiencyModalListeners() {
         closeEfficiencyModal()
       }
     })
+    console.log('✅ Modal backdrop listener attached')
   }
 }
 
