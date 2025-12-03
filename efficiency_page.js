@@ -211,6 +211,10 @@ function updateTrendChart() {
     trendChart.destroy()
   }
   
+  // Register the plugin if available
+  if (typeof ChartDataLabels !== 'undefined') {
+    Chart.register(ChartDataLabels)
+  }
   trendChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -235,7 +239,7 @@ function updateTrendChart() {
           labels: { color: '#cbd5e1' }
         },
         // TAMBAHAN: Tampilkan label di setiap titik
-        datalabels: {
+        datalabels: typeof ChartDataLabels !== 'undefined' ? {
           display: true,
           color: '#ffd166',
           font: {
@@ -263,7 +267,6 @@ function updateTrendChart() {
         }
       }
     },
-    plugins: [ChartDataLabels] // Enable plugin
   })
 }
 
@@ -291,6 +294,10 @@ function updateBlockChart() {
     blockChart.destroy()
   }
   
+   // Register the plugin if available
+  if (typeof ChartDataLabels !== 'undefined') {
+    Chart.register(ChartDataLabels)
+  }
   blockChart = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -307,7 +314,7 @@ function updateBlockChart() {
       plugins: {
         legend: { display: false },
         // TAMBAHAN: Tampilkan persentase di atas bar
-        datalabels: {
+        datalabels: typeof ChartDataLabels !== 'undefined' ? {
           display: true,
           color: '#fff',
           font: {
@@ -320,7 +327,7 @@ function updateBlockChart() {
           anchor: 'end',
           align: 'top',
           offset: 2
-        }
+        } : false
       },
       scales: {
         x: {
@@ -335,7 +342,6 @@ function updateBlockChart() {
         }
       }
     },
-    plugins: [ChartDataLabels] // Enable plugin
   })
 }
 
