@@ -159,14 +159,24 @@ async function importEfficiencyFromExcel(file) {
           try {
             const machineId = parseInt(row['Machine ID'] || row['Mesin'] || row['ID'])
             let date = row['Date'] || row['Tanggal']
-            const shiftA = parseFloat(row['Shift A'] || row['A'] || 0)
-            const shiftB = parseFloat(row['Shift B'] || row['B'] || 0)
-            const shiftC = parseFloat(row['Shift C'] || row['C'] || 0)
+            let shiftA = parseFloat(row['Shift A'] || row['A'] || 0)
+            let shiftB = parseFloat(row['Shift B'] || row['B'] || 0)
+            let shiftC = parseFloat(row['Shift C'] || row['C'] || 0)
             
             if (!machineId || !date) {
               errors.push(`Row ${index + 2}: Missing Machine ID or Date`)
               return
             }
+            
+            // PENTING: Auto-convert dari format persen Excel (0.84 → 84)
+            if (shiftA > 0 && shiftA < 1) shiftA = shiftA * 100
+            if (shiftB > 0 && shiftB < 1) shiftB = shiftB * 100
+            if (shiftC > 0 && shiftC < 1) shiftC = shiftC * 100
+            
+            // Round to 1 decimal
+            shiftA = Math.round(shiftA * 10) / 10
+            shiftB = Math.round(shiftB * 10) / 10
+            shiftC = Math.round(shiftC * 10) / 10
             
             // Convert date to ISO format
             if (date instanceof Date) {
