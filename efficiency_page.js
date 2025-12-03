@@ -51,21 +51,18 @@ function renderEfficiencyGrid() {
   
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
-  // Check if efficiency system is loaded
   if (!window.efficiencySystem) {
     console.error('Efficiency system not loaded')
     grid.innerHTML = '<div class="no-data">❌ Efficiency system not loaded</div>'
     return
   }
   
-  // Get all machines with efficiency data for this date
   const machinesWithData = []
   
   for (let i = 1; i <= 640; i++) {
     const eff = window.efficiencySystem.getMachineEfficiency(i, date)
     const block = getMachineBlock(i)
     
-    // Filter by block
     if (blockFilter && blockFilter.value && block !== blockFilter.value) continue
     
     if (eff && eff.global > 0) {
@@ -77,7 +74,6 @@ function renderEfficiencyGrid() {
     }
   }
   
-  // Sort
   if (sortFilter && sortFilter.value === 'efficiency') {
     machinesWithData.sort((a, b) => b.global - a.global)
   } else if (sortFilter && sortFilter.value === 'efficiency-low') {
@@ -86,7 +82,6 @@ function renderEfficiencyGrid() {
     machinesWithData.sort((a, b) => a.id - b.id)
   }
   
-  // Render
   if (machinesWithData.length === 0) {
     grid.innerHTML = `<div class="no-data">Tidak ada data efisiensi untuk tanggal ${date}.</div>`
     return
@@ -133,7 +128,6 @@ function renderEfficiencyGrid() {
       </div>
     `
     
-    // Add click handler to edit
     card.style.cursor = 'pointer'
     card.addEventListener('click', () => {
       if (window.efficiencySystem) {
@@ -181,7 +175,6 @@ function updateTrendChart() {
     return
   }
   
-  // Get last 7 days
   const dates = []
   const avgEfficiency = []
   
@@ -192,7 +185,6 @@ function updateTrendChart() {
     
     dates.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }))
     
-    // Calculate average efficiency for this date
     let totalEff = 0
     let count = 0
     
@@ -211,10 +203,10 @@ function updateTrendChart() {
     trendChart.destroy()
   }
   
-  // Register the plugin if available
   if (typeof ChartDataLabels !== 'undefined') {
     Chart.register(ChartDataLabels)
   }
+  
   trendChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -267,6 +259,7 @@ function updateTrendChart() {
       }
     }
   })
+}
 
 function updateBlockChart() {
   const canvas = document.getElementById('block-efficiency-chart')
@@ -292,10 +285,10 @@ function updateBlockChart() {
     blockChart.destroy()
   }
   
-   // Register the plugin if available
   if (typeof ChartDataLabels !== 'undefined') {
     Chart.register(ChartDataLabels)
   }
+  
   blockChart = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -311,7 +304,6 @@ function updateBlockChart() {
       maintainAspectRatio: true,
       plugins: {
         legend: { display: false },
-        // TAMBAHAN: Tampilkan persentase di atas bar
         datalabels: typeof ChartDataLabels !== 'undefined' ? {
           display: true,
           color: '#fff',
@@ -339,7 +331,7 @@ function updateBlockChart() {
           grid: { color: 'rgba(255, 255, 255, 0.05)' }
         }
       }
-    },
+    }
   })
 }
 
@@ -405,7 +397,6 @@ function showToast(text, type = '') {
 // ============ EVENT LISTENERS ============
 
 function attachEventListeners() {
-  // Date filter
   const dateFilter = document.getElementById('date-filter')
   if (dateFilter) {
     dateFilter.value = new Date().toISOString().split('T')[0]
@@ -416,19 +407,16 @@ function attachEventListeners() {
     })
   }
   
-  // Block filter
   const blockFilter = document.getElementById('block-filter')
   if (blockFilter) {
     blockFilter.addEventListener('change', renderEfficiencyGrid)
   }
   
-  // Sort filter
   const sortFilter = document.getElementById('sort-filter')
   if (sortFilter) {
     sortFilter.addEventListener('change', renderEfficiencyGrid)
   }
   
-  // Import button
   const importBtn = document.getElementById('import-efficiency')
   if (importBtn) {
     importBtn.addEventListener('click', () => {
@@ -436,7 +424,6 @@ function attachEventListeners() {
     })
   }
   
-  // File input
   const fileInput = document.getElementById('efficiency-file-input')
   if (fileInput) {
     fileInput.addEventListener('change', async (e) => {
@@ -450,13 +437,11 @@ function attachEventListeners() {
             showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
           }
           
-          // Refresh UI
           renderEfficiencyGrid()
           updateBlockSummary()
           updateTrendChart()
           updateBlockChart()
           
-          // Clear file input
           e.target.value = ''
         } catch (error) {
           console.error('Import error:', error)
@@ -466,7 +451,6 @@ function attachEventListeners() {
     })
   }
   
-  // Export button
   const exportBtn = document.getElementById('export-efficiency')
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
@@ -490,7 +474,6 @@ function attachEventListeners() {
 function initialize() {
   console.log('🚀 Initializing efficiency page...')
   
-  // Check if efficiency system is available
   if (!window.efficiencySystem) {
     console.error('❌ Efficiency system not loaded')
     const grid = document.getElementById('efficiency-grid')
@@ -500,14 +483,8 @@ function initialize() {
     return
   }
   
-  // Load efficiency data
   window.efficiencySystem.loadEfficiencyData()
   
-  // DON'T setup modal listeners here (not in efficiency.html)
-  // Modal is only in layout.html
-  // window.efficiencySystem.setupEfficiencyModalListeners()
-  
-  // Setup UI
   attachEventListeners()
   renderEfficiencyGrid()
   updateBlockSummary()
@@ -517,7 +494,7 @@ function initialize() {
   
   console.log('✅ Efficiency page initialized')
 }
-// Start
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initialize)
 } else {
@@ -526,7 +503,6 @@ if (document.readyState === 'loading') {
 
 setInterval(updateClock, 1000)
 
-// Auto-refresh every 30 seconds
 setInterval(() => {
   renderEfficiencyGrid()
   updateBlockSummary()
@@ -534,7 +510,6 @@ setInterval(() => {
   updateBlockChart()
 }, 30000)
 
-// Expose functions globally for debugging
 window.efficiencyPage = {
   renderEfficiencyGrid,
   updateBlockSummary,
