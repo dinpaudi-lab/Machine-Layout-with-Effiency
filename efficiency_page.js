@@ -222,8 +222,8 @@ function updateTrendChart() {
         backgroundColor: 'rgba(255, 209, 102, 0.1)',
         tension: 0.4,
         fill: true,
-        pointRadius: 4,
-        pointHoverRadius: 6
+        pointRadius: 6,
+        pointHoverRadius: 8
       }]
     },
     options: {
@@ -233,6 +233,21 @@ function updateTrendChart() {
         legend: {
           display: true,
           labels: { color: '#cbd5e1' }
+        },
+        // TAMBAHAN: Tampilkan label di setiap titik
+        datalabels: {
+          display: true,
+          color: '#ffd166',
+          font: {
+            weight: 'bold',
+            size: 12
+          },
+          formatter: function(value) {
+            return value > 0 ? value + '%' : ''
+          },
+          anchor: 'end',
+          align: 'top',
+          offset: 4
         }
       },
       scales: {
@@ -247,7 +262,8 @@ function updateTrendChart() {
           grid: { color: 'rgba(255, 255, 255, 0.05)' }
         }
       }
-    }
+    },
+    plugins: [ChartDataLabels] // Enable plugin
   })
 }
 
@@ -289,7 +305,22 @@ function updateBlockChart() {
       responsive: true,
       maintainAspectRatio: true,
       plugins: {
-        legend: { display: false }
+        legend: { display: false },
+        // TAMBAHAN: Tampilkan persentase di atas bar
+        datalabels: {
+          display: true,
+          color: '#fff',
+          font: {
+            weight: 'bold',
+            size: 14
+          },
+          formatter: function(value) {
+            return value > 0 ? value + '%' : '0%'
+          },
+          anchor: 'end',
+          align: 'top',
+          offset: 2
+        }
       },
       scales: {
         x: {
@@ -303,7 +334,8 @@ function updateBlockChart() {
           grid: { color: 'rgba(255, 255, 255, 0.05)' }
         }
       }
-    }
+    },
+    plugins: [ChartDataLabels] // Enable plugin
   })
 }
 
