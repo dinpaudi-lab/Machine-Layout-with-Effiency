@@ -177,6 +177,7 @@ function updateTrendChart() {
   
   const dates = []
   const avgEfficiency = []
+  const TOTAL_OPERATIONAL_MACHINES = 600
   
   for (let i = 6; i >= 0; i--) {
     const date = new Date()
@@ -186,17 +187,13 @@ function updateTrendChart() {
     dates.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }))
     
     let totalEff = 0
-    let count = 0
     
-    for (let machineId = 1; machineId <= 640; machineId++) {
+    for (let machineId = 1; machineId <= TOTAL_OPERATIONAL_MACHINES; machineId++) {
       const eff = window.efficiencySystem.getMachineEfficiency(machineId, dateStr)
-      if (eff && eff.global > 0) {
-        totalEff += eff.global
-        count++
-      }
+      totalEff += (eff && eff.global) ? eff.global : 0
     }
     
-    avgEfficiency.push(count > 0 ? Math.round((totalEff / count) * 10) / 10 : 0)
+    avgEfficiency.push(Math.round((totalEff / TOTAL_OPERATIONAL_MACHINES) * 10) / 10)
   }
   
   if (trendChart) {
