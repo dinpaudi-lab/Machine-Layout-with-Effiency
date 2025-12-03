@@ -430,7 +430,7 @@ function attachEventListeners() {
       if (e.target.files[0]) {
         try {
           const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
-          showToast(`✅ Imported ${result.imported} records`, 'success')
+          showToast(`✅ Imported ${result.imported} records from ${result.sheetsProcessed} sheets`, 'success')
           
           if (result.errors.length > 0) {
             console.warn('Import errors:', result.errors)
