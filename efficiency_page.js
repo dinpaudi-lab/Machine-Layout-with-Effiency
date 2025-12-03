@@ -252,13 +252,13 @@ function updateTrendChart() {
           anchor: 'end',
           align: 'top',
           offset: 4
-        }
+        } : false
       },
       scales: {
         x: {
           ticks: { color: '#cbd5e1' },
           grid: { color: 'rgba(255, 255, 255, 0.05)' }
-        },
+        }, 
         y: {
           beginAtZero: true,
           max: 100,
