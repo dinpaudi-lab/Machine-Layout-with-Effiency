@@ -177,7 +177,7 @@ function updateTrendChart() {
   
   const dates = []
   const avgEfficiency = []
-  const TOTAL_OPERATIONAL_MACHINES = 600
+  const TOTAL_OPERATIONAL_MACHINES = 630
   
   for (let i = 6; i >= 0; i--) {
     const date = new Date()
