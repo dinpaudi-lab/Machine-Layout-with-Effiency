@@ -138,7 +138,7 @@ function getMachinesWithEfficiency(date) {
   return machinesWithData
 }
 
-// ============ BATCH IMPORT FROM EXCEL ============
+// ============ BATCH IMPORT FROM EXCEL - MULTI SHEET SUPPORT ============
 async function importEfficiencyFromExcel(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -148,60 +148,109 @@ async function importEfficiencyFromExcel(file) {
         const data = new Uint8Array(e.target.result)
         const workbook = XLSX.read(data, { type: 'array' })
         
-        // Expected format: Machine ID | Date | Shift A | Shift B | Shift C
-        const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const rows = XLSX.utils.sheet_to_json(sheet)
-        
         let imported = 0
         let errors = []
+        let sheetsProcessed = 0
         
-        rows.forEach((row, index) => {
+        console.log(`📊 Found ${workbook.SheetNames.length} sheets in Excel file`)
+        
+        // Loop through ALL sheets
+        workbook.SheetNames.forEach((sheetName, sheetIndex) => {
           try {
-            const machineId = parseInt(row['Machine ID'] || row['Mesin'] || row['ID'])
-            let date = row['Date'] || row['Tanggal']
-            let shiftA = parseFloat(row['Shift A'] || row['A'] || 0)
-            let shiftB = parseFloat(row['Shift B'] || row['B'] || 0)
-            let shiftC = parseFloat(row['Shift C'] || row['C'] || 0)
+            console.log(`📄 Processing sheet: ${sheetName}`)
             
-            if (!machineId || !date) {
-              errors.push(`Row ${index + 2}: Missing Machine ID or Date`)
+            const sheet = workbook.Sheets[sheetName]
+            const rows = XLSX.utils.sheet_to_json(sheet)
+            
+            if (rows.length === 0) {
+              console.warn(`⚠️ Sheet "${sheetName}" is empty, skipping`)
               return
             }
             
-            // PENTING: Auto-convert dari format persen Excel (0.84 → 84)
-            if (shiftA > 0 && shiftA < 1) shiftA = shiftA * 100
-            if (shiftB > 0 && shiftB < 1) shiftB = shiftB * 100
-            if (shiftC > 0 && shiftC < 1) shiftC = shiftC * 100
-            
-            // Round to 1 decimal
-            shiftA = Math.round(shiftA * 10) / 10
-            shiftB = Math.round(shiftB * 10) / 10
-            shiftC = Math.round(shiftC * 10) / 10
-            
-            // Convert date to ISO format
-            if (date instanceof Date) {
-              date = date.toISOString().split('T')[0]
-            } else if (typeof date === 'string') {
-              date = new Date(date).toISOString().split('T')[0]
-            } else if (typeof date === 'number') {
-              // Excel date serial number
-              const excelDate = new Date((date - 25569) * 86400 * 1000)
-              date = excelDate.toISOString().split('T')[0]
+            // Try to extract date from sheet name (e.g., "2024-12-03" or "03-12-2024")
+            let sheetDate = null
+            const dateMatch = sheetName.match(/(\d{4}-\d{2}-\d{2})|(\d{2}-\d{2}-\d{4})/)
+            if (dateMatch) {
+              sheetDate = dateMatch[0]
+              // Normalize to YYYY-MM-DD format
+              if (sheetDate.match(/^\d{2}-\d{2}-\d{4}$/)) {
+                const parts = sheetDate.split('-')
+                sheetDate = `${parts[2]}-${parts[1]}-${parts[0]}`
+              }
+              console.log(`📅 Sheet date detected: ${sheetDate}`)
             }
             
-            setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, 'Excel Import')
-            imported++
-          } catch (err) {
-            errors.push(`Row ${index + 2}: ${err.message}`)
+            rows.forEach((row, rowIndex) => {
+              try {
+                const machineId = parseInt(row['Machine ID'] || row['Mesin'] || row['ID'] || row['Machine'] || row['No Mesin'])
+                
+                // Date priority: 1. Column, 2. Sheet name, 3. Error
+                let date = row['Date'] || row['Tanggal'] || sheetDate
+                
+                let shiftA = parseFloat(row['Shift A'] || row['A'] || row['shift_a'] || 0)
+                let shiftB = parseFloat(row['Shift B'] || row['B'] || row['shift_b'] || 0)
+                let shiftC = parseFloat(row['Shift C'] || row['C'] || row['shift_c'] || 0)
+                
+                if (!machineId) {
+                  errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: Missing Machine ID`)
+                  return
+                }
+                
+                if (!date) {
+                  errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: Missing Date (not in column or sheet name)`)
+                  return
+                }
+                
+                // PENTING: Auto-convert dari format persen Excel (0.84 → 84)
+                // Ini otomatis detect apakah nilai sudah persen (>1) atau decimal (<1)
+                if (shiftA > 0 && shiftA <= 1) shiftA = shiftA * 100
+                if (shiftB > 0 && shiftB <= 1) shiftB = shiftB * 100
+                if (shiftC > 0 && shiftC <= 1) shiftC = shiftC * 100
+                
+                // Round to 1 decimal
+                shiftA = Math.round(shiftA * 10) / 10
+                shiftB = Math.round(shiftB * 10) / 10
+                shiftC = Math.round(shiftC * 10) / 10
+                
+                // Convert date to ISO format
+                if (date instanceof Date) {
+                  date = date.toISOString().split('T')[0]
+                } else if (typeof date === 'string') {
+                  // Handle various date formats
+                  if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    // Already in YYYY-MM-DD format
+                  } else if (date.match(/^\d{2}[-/]\d{2}[-/]\d{4}$/)) {
+                    // DD-MM-YYYY or DD/MM/YYYY
+                    const parts = date.split(/[-/]/)
+                    date = `${parts[2]}-${parts[1]}-${parts[0]}`
+                  } else {
+                    date = new Date(date).toISOString().split('T')[0]
+                  }
+                } else if (typeof date === 'number') {
+                  // Excel date serial number
+                  const excelDate = new Date((date - 25569) * 86400 * 1000)
+                  date = excelDate.toISOString().split('T')[0]
+                }
+                
+                setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, `Excel Import (${sheetName})`)
+                imported++
+              } catch (err) {
+                errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: ${err.message}`)
+              }
+            })
+            
+            sheetsProcessed++
+          } catch (sheetErr) {
+            errors.push(`Sheet "${sheetName}": ${sheetErr.message}`)
           }
         })
         
-        console.log(`✅ Imported ${imported} efficiency records`)
+        console.log(`✅ Imported ${imported} efficiency records from ${sheetsProcessed} sheets`)
         if (errors.length > 0) {
           console.warn('⚠️ Import errors:', errors)
         }
         
-        resolve({ imported, errors })
+        resolve({ imported, errors, sheetsProcessed })
       } catch (error) {
         console.error('❌ Excel import error:', error)
         reject(error)
