@@ -238,7 +238,6 @@ function updateTrendChart() {
           display: true,
           labels: { color: '#cbd5e1' }
         },
-        // TAMBAHAN: Tampilkan label di setiap titik
         datalabels: typeof ChartDataLabels !== 'undefined' ? {
           display: true,
           color: '#ffd166',
@@ -258,7 +257,7 @@ function updateTrendChart() {
         x: {
           ticks: { color: '#cbd5e1' },
           grid: { color: 'rgba(255, 255, 255, 0.05)' }
-        }, 
+        },
         y: {
           beginAtZero: true,
           max: 100,
@@ -266,9 +265,8 @@ function updateTrendChart() {
           grid: { color: 'rgba(255, 255, 255, 0.05)' }
         }
       }
-    },
+    }
   })
-}
 
 function updateBlockChart() {
   const canvas = document.getElementById('block-efficiency-chart')
