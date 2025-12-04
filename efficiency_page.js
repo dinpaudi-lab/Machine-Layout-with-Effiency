@@ -175,26 +175,32 @@ function updateTrendChart() {
     return
   }
   
-  const dates = []
-  const avgEfficiency = []
-  const TOTAL_OPERATIONAL_MACHINES = 630
+const dates = []
+const avgEfficiency = []
+
+for (let i = 6; i >= 0; i--) {
+  const date = new Date()
+  date.setDate(date.getDate() - i)
+  const dateStr = date.toISOString().split('T')[0]
   
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date()
-    date.setDate(date.getDate() - i)
-    const dateStr = date.toISOString().split('T')[0]
-    
-    dates.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }))
-    
-    let totalEff = 0
-    
-    for (let machineId = 1; machineId <= TOTAL_OPERATIONAL_MACHINES; machineId++) {
+  dates.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }))
+  
+  let totalEff = 0
+  let operationalCount = 0
+  
+  // Loop SEMUA mesin 1-640
+  for (let machineId = 1; machineId <= 640; machineId++) {
+    // Tapi hanya hitung yang operasional (1-600)
+    if (window.efficiencySystem.isMachineOperational(machineId)) {
       const eff = window.efficiencySystem.getMachineEfficiency(machineId, dateStr)
+      // Tidak ada data = 0 (maintenance/mati)
       totalEff += (eff && eff.global) ? eff.global : 0
+      operationalCount++
     }
-    
-    avgEfficiency.push(Math.round((totalEff / TOTAL_OPERATIONAL_MACHINES) * 10) / 10)
   }
+  
+  avgEfficiency.push(operationalCount > 0 ? Math.round((totalEff / operationalCount) * 10) / 10 : 0)
+}
   
   if (trendChart) {
     trendChart.destroy()
