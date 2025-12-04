@@ -420,39 +420,74 @@ function attachEventListeners() {
     sortFilter.addEventListener('change', renderEfficiencyGrid)
   }
   
-  const importBtn = document.getElementById('import-efficiency')
-  if (importBtn) {
-    importBtn.addEventListener('click', () => {
-      document.getElementById('efficiency-file-input').click()
-    })
-  }
-  
-  const fileInput = document.getElementById('efficiency-file-input')
-  if (fileInput) {
-    fileInput.addEventListener('change', async (e) => {
-      if (e.target.files[0]) {
-        try {
-          const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
-          showToast(`✅ Imported ${result.imported} records from ${result.sheetsProcessed} sheets`, 'success')
-          
-          if (result.errors.length > 0) {
-            console.warn('Import errors:', result.errors)
-            showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
-          }
-          
-          renderEfficiencyGrid()
-          updateBlockSummary()
-          updateTrendChart()
-          updateBlockChart()
-          
-          e.target.value = ''
-        } catch (error) {
-          console.error('Import error:', error)
-          showToast('❌ Import failed: ' + error.message, 'warn')
+  const importMachineBtn = document.getElementById('import-efficiency-machine')
+if (importMachineBtn) {
+  importMachineBtn.addEventListener('click', () => {
+    document.getElementById('efficiency-machine-file-input').click()
+  })
+}
+
+const importGlobalBtn = document.getElementById('import-efficiency-global')
+if (importGlobalBtn) {
+  importGlobalBtn.addEventListener('click', () => {
+    document.getElementById('efficiency-global-file-input').click()
+  })
+}
+
+const machineFileInput = document.getElementById('efficiency-machine-file-input')
+if (machineFileInput) {
+  machineFileInput.addEventListener('change', async (e) => {
+    if (e.target.files[0]) {
+      try {
+        const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
+        showToast(`✅ Imported ${result.imported} records from ${result.sheetsProcessed} sheets`, 'success')
+        
+        if (result.errors.length > 0) {
+          console.warn('Import errors:', result.errors)
+          showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
         }
+        
+        renderEfficiencyGrid()
+        updateBlockSummary()
+        updateTrendChart()
+        updateBlockChart()
+        
+        e.target.value = ''
+      } catch (error) {
+        console.error('Import error:', error)
+        showToast('❌ Import failed: ' + error.message, 'warn')
       }
-    })
-  }
+    }
+  })
+}
+
+const globalFileInput = document.getElementById('efficiency-global-file-input')
+if (globalFileInput) {
+  globalFileInput.addEventListener('change', async (e) => {
+    if (e.target.files[0]) {
+      try {
+        if (!window.globalEfficiencySystem) {
+          throw new Error('Global efficiency system not loaded')
+        }
+        
+        const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
+        showToast(`✅ Imported ${result.imported} records from ${result.sheetsProcessed} sheets`, 'success')
+        
+        if (result.errors.length > 0) {
+          console.warn('Import errors:', result.errors)
+          showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
+        }
+        
+        updateTrendChart()
+        
+        e.target.value = ''
+      } catch (error) {
+        console.error('Import error:', error)
+        showToast('❌ Import failed: ' + error.message, 'warn')
+      }
+    }
+  })
+}
   
   const exportBtn = document.getElementById('export-efficiency')
   if (exportBtn) {
