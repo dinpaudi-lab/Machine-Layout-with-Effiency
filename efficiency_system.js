@@ -595,6 +595,5 @@ window.efficiencySystem = {
 isMachineOperational,
   MACHINE_CONFIG
 }
-}
 
 console.log('✅ Efficiency system loaded - Fixed version')
