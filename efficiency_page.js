@@ -170,37 +170,27 @@ function updateTrendChart() {
   
   const ctx = canvas.getContext('2d')
   
-  if (!window.efficiencySystem) {
-    console.error('Efficiency system not loaded')
+  // Check if global efficiency system available
+  if (!window.globalEfficiencySystem) {
+    console.error('Global efficiency system not loaded')
     return
   }
   
-const dates = []
-const avgEfficiency = []
+  const dates = []
+  const globalEfficiency = []
 
-for (let i = 6; i >= 0; i--) {
-  const date = new Date()
-  date.setDate(date.getDate() - i)
-  const dateStr = date.toISOString().split('T')[0]
-  
-  dates.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }))
-  
-  let totalEff = 0
-  let operationalCount = 0
-  
-  // Loop SEMUA mesin 1-640
-  for (let machineId = 1; machineId <= 640; machineId++) {
-    // Tapi hanya hitung yang operasional (1-600)
-    if (window.efficiencySystem.isMachineOperational(machineId)) {
-      const eff = window.efficiencySystem.getMachineEfficiency(machineId, dateStr)
-      // Tidak ada data = 0 (maintenance/mati)
-      totalEff += (eff && eff.global) ? eff.global : 0
-      operationalCount++
-    }
+  // Get last 30 days of global efficiency data
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date()
+    date.setDate(date.getDate() - i)
+    const dateStr = date.toISOString().split('T')[0]
+    
+    dates.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }))
+    
+    // Get global efficiency for this date
+    const globalData = window.globalEfficiencySystem.getGlobalEfficiency(dateStr)
+    globalEfficiency.push(globalData ? globalData.global : 0)
   }
-  
-  avgEfficiency.push(operationalCount > 0 ? Math.round((totalEff / operationalCount) * 10) / 10 : 0)
-}
   
   if (trendChart) {
     trendChart.destroy()
@@ -215,8 +205,8 @@ for (let i = 6; i >= 0; i--) {
     data: {
       labels: dates,
       datasets: [{
-        label: 'Rata-rata Efisiensi Global (%)',
-        data: avgEfficiency,
+        label: 'Efisiensi Global Pabrik (%)',
+        data: globalEfficiency,
         borderColor: '#ffd166',
         backgroundColor: 'rgba(255, 209, 102, 0.1)',
         tension: 0.4,
