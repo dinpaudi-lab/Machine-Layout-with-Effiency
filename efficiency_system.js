@@ -115,19 +115,6 @@ function getBlockEfficiency(blockName, date) {
   
   return operationalCount > 0 ? Math.round((totalGlobal / operationalCount) * 10) / 10 : 0
 }
-  const targetDate = date || new Date().toISOString().split('T')[0]
-  const blockMachines = getMachinesInBlock(blockName)
-  
-  let totalGlobal = 0
-  
-  blockMachines.forEach(machineId => {
-    const eff = getMachineEfficiency(machineId, targetDate)
-    totalGlobal += (eff && eff.global) ? eff.global : 0
-  })
-  
-  const totalMachines = blockMachines.length
-  return totalMachines > 0 ? Math.round((totalGlobal / totalMachines) * 10) / 10 : 0
-}
 
 // Get mesin dalam blok tertentu
 function getMachinesInBlock(blockName) {
