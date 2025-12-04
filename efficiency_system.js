@@ -2,7 +2,17 @@
 // Mengelola efisiensi mesin per shift (A, B, C)
 
 const EFFICIENCY_KEY = 'machine_efficiency_v2'
+// ============ CONFIGURATION ============
+const MACHINE_CONFIG = {
+  TOTAL_MACHINES: 640,
+  OPERATIONAL_START: 1,
+  OPERATIONAL_END: 600  // Mesin 1-600 adalah operasional
+}
 
+function isMachineOperational(machineId) {
+  return machineId >= MACHINE_CONFIG.OPERATIONAL_START && 
+         machineId <= MACHINE_CONFIG.OPERATIONAL_END
+}
 // Data structure: { machineId: { date: { shiftA, shiftB, shiftC, global, editor, timestamp } } }
 let efficiencyData = {}
 
@@ -87,6 +97,24 @@ function getAllMachineEfficiency(machineId) {
 
 // Get efisiensi global untuk blok pada tanggal tertentu
 function getBlockEfficiency(blockName, date) {
+  const targetDate = date || new Date().toISOString().split('T')[0]
+  const blockMachines = getMachinesInBlock(blockName)
+  
+  let totalGlobal = 0
+  let operationalCount = 0
+  
+  blockMachines.forEach(machineId => {
+    // Hanya mesin operasional (1-600)
+    if (isMachineOperational(machineId)) {
+      const eff = getMachineEfficiency(machineId, targetDate)
+      // Tidak ada data = 0 (maintenance/mati)
+      totalGlobal += (eff && eff.global) ? eff.global : 0
+      operationalCount++
+    }
+  })
+  
+  return operationalCount > 0 ? Math.round((totalGlobal / operationalCount) * 10) / 10 : 0
+}
   const targetDate = date || new Date().toISOString().split('T')[0]
   const blockMachines = getMachinesInBlock(blockName)
   
@@ -576,6 +604,10 @@ window.efficiencySystem = {
   saveEfficiencyData,
   setupEfficiencyModalListeners,
   efficiencyData // Expose data for debugging
+
+isMachineOperational,
+  MACHINE_CONFIG
+}
 }
 
 console.log('✅ Efficiency system loaded - Fixed version')
