@@ -229,6 +229,7 @@
         </label>
         
         <button id="import-efficiency" class="chip">📤 Import Excel</button>
+        <button id="import-efficiency-global" class="chip">📊 Import Efficiency Global</button>
         <button id="export-efficiency" class="chip">📥 Export Excel</button>
       </div>
     </section>
@@ -259,7 +260,8 @@
   <footer class="footer">© 2025 — Dibuat oleh Didin</footer>
 
   <!-- Hidden file input -->
-  <input type="file" id="efficiency-file-input" accept=".xlsx,.xls" style="display: none;" />
+  <input type="file" id="efficiency-machine-file-input" accept=".xlsx,.xls" style="display: none;" />
+  <input type="file" id="efficiency-global-file-input" accept=".xlsx,.xls" style="display: none;" />
 
 <!-- Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -271,6 +273,8 @@
 <script src="supabase_sync_fixed.js"></script>
 <script src="efficiency_system.js"></script>
 <script src="efficiency_template.js"></script>
+<script src="efficiency_global_system.js"></script>       
+<script src="efficiency_global_template.js"></script>     
 <script>
   // Simple toast function for efficiency page
   function showToast(text, type = '') {
