@@ -2,6 +2,7 @@
 // Mengelola efisiensi mesin per shift (A, B, C)
 
 const EFFICIENCY_KEY = 'machine_efficiency_v2'
+
 // ============ CONFIGURATION ============
 const MACHINE_CONFIG = {
   TOTAL_MACHINES: 640,
@@ -13,6 +14,7 @@ function isMachineOperational(machineId) {
   return machineId >= MACHINE_CONFIG.OPERATIONAL_START && 
          machineId <= MACHINE_CONFIG.OPERATIONAL_END
 }
+
 // Data structure: { machineId: { date: { shiftA, shiftB, shiftC, global, editor, timestamp } } }
 let efficiencyData = {}
 
@@ -590,9 +592,8 @@ window.efficiencySystem = {
   loadEfficiencyData,
   saveEfficiencyData,
   setupEfficiencyModalListeners,
-  efficiencyData // Expose data for debugging
-
-isMachineOperational,
+  efficiencyData,
+  isMachineOperational,
   MACHINE_CONFIG
 }
 
