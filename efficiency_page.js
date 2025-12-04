@@ -209,7 +209,7 @@ function updateTrendChart() {
         data: globalEfficiency,
         borderColor: '#ffd166',
         backgroundColor: 'rgba(255, 209, 102, 0.1)',
-        tension: 0.4,
+        tension: 0,
         fill: true,
         pointRadius: 6,
         pointHoverRadius: 8
@@ -239,17 +239,23 @@ function updateTrendChart() {
         } : false
       },
       scales: {
-        x: {
-          ticks: { color: '#cbd5e1' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' }
-        },
-        y: {
-          beginAtZero: true,
-          max: 100,
-          ticks: { color: '#cbd5e1' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' }
-        }
-      }
+  x: {
+    ticks: { 
+      color: '#cbd5e1',
+      maxRotation: 45,
+      minRotation: 45,
+      autoSkip: true,
+      maxTicksLimit: 15
+    },
+    grid: { color: 'rgba(255, 255, 255, 0.05)' }
+  },
+  y: {
+    beginAtZero: true,
+    max: 100,
+    ticks: { color: '#cbd5e1' },
+    grid: { color: 'rgba(255, 255, 255, 0.05)' }
+  }
+}
     }
   })
 }
