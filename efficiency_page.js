@@ -186,13 +186,9 @@ function updateTrendChart() {
     date.setDate(date.getDate() - i)
     const dateStr = date.toISOString().split('T')[0]
     
-    // Label: tampilkan setiap 7 hari
-    const showLabel = (29 - i) % 7 === 0 || i === 0
-    dateLabels.push(
-      showLabel 
-        ? date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
-        : ''
-    )
+   dateLabels.push(
+   date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+)
     
     // Get global efficiency for this date
     const globalData = window.globalEfficiencySystem.getGlobalEfficiency(dateStr)
@@ -216,7 +212,7 @@ function updateTrendChart() {
         data: globalEfficiency,
         borderColor: '#ffd166',
         backgroundColor: 'rgba(255, 209, 102, 0.1)',
-        tension: 0.3,
+        tension: 0,
         fill: true,
         pointRadius: 5,
         pointHoverRadius: 7,
@@ -273,9 +269,9 @@ function updateTrendChart() {
         x: {
           ticks: { 
             color: '#cbd5e1',
-            maxRotation: 0,
-            minRotation: 0,
-            font: { size: 11 }
+            maxRotation: 45,
+            minRotation: 45,
+            font: { size: 10 }
           },
           grid: { 
             color: 'rgba(255, 255, 255, 0.05)',
