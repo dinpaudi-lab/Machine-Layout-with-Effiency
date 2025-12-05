@@ -682,6 +682,11 @@ function renderGrid(){
 }
 
 function openModal(id){ 
+  // ✅ TAMBAHAN: Notify conflict system
+  if (window.conflictHandler) {
+    window.conflictHandler.startEditing('machine', id)
+  }
+  
   const modal = $('modal')
   if(!modal) return
   
@@ -707,11 +712,20 @@ function openModal(id){
 }
 
 function closeModal(){ 
+  // ✅ TAMBAHAN: Stop editing
+  if (window.conflictHandler) {
+    window.conflictHandler.stopEditing()
+  }
+  
   const modal = $('modal')
   if(modal) modal.classList.add('hidden') 
 }
-
 function openConstModal(construct){ 
+  // ✅ TAMBAHAN: Notify conflict system
+  if (window.conflictHandler) {
+    window.conflictHandler.startEditing('construction', construct.id)
+  }
+  
   const modal = $('const-modal')
   if(!modal) return
   
@@ -733,6 +747,11 @@ function openConstModal(construct){
 }
 
 function closeConstModal(){ 
+  // ✅ TAMBAHAN: Stop editing
+  if (window.conflictHandler) {
+    window.conflictHandler.stopEditing()
+  }
+  
   const modal = $('const-modal')
   if(modal) modal.classList.add('hidden') 
 }
@@ -1324,6 +1343,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
