@@ -61,17 +61,17 @@ function setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, editor) {
   // Calculate global efficiency (average of all shifts)
   const shifts = [shiftA, shiftB, shiftC].filter(s => s !== null && s !== undefined && !isNaN(s) && s > 0)
   const global = shifts.length > 0 
-  ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
-  : 0
+    ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
+    : 0
 
-efficiencyData[machineId][date] = {
-  shiftA: parseFloat(shiftA).toFixed(2),
-  shiftB: parseFloat(shiftB).toFixed(2),
-  shiftC: parseFloat(shiftC).toFixed(2),
-  global: parseFloat(global).toFixed(2),
-  timestamp: new Date().toISOString(),
-  editor: editor || getCurrentUserId()
-}
+  efficiencyData[machineId][date] = {
+    shiftA: parseFloat(shiftA).toFixed(2),
+    shiftB: parseFloat(shiftB).toFixed(2),
+    shiftC: parseFloat(shiftC).toFixed(2),
+    global: parseFloat(global).toFixed(2),
+    timestamp: new Date().toISOString(),
+    editor: editor || getCurrentUserId()
+  }
   
   saveEfficiencyData()
   
@@ -116,7 +116,7 @@ function getBlockEfficiency(blockName, date) {
   })
   
   return operationalCount > 0 ? parseFloat((totalGlobal / operationalCount).toFixed(2)) : 0
-}  // ← TAMBAH KURUNG TUTUP INI!
+}
 
 // Get mesin dalam blok tertentu
 function getMachinesInBlock(blockName) {
