@@ -177,6 +177,7 @@ function updateTrendChart() {
   }
   
   const dates = []
+  const dateLabels = []
   const globalEfficiency = []
 
   // Get last 30 days of global efficiency data
@@ -185,7 +186,13 @@ function updateTrendChart() {
     date.setDate(date.getDate() - i)
     const dateStr = date.toISOString().split('T')[0]
     
-    dates.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }))
+    // Label: tampilkan setiap 7 hari
+    const showLabel = (29 - i) % 7 === 0 || i === 0
+    dateLabels.push(
+      showLabel 
+        ? date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+        : ''
+    )
     
     // Get global efficiency for this date
     const globalData = window.globalEfficiencySystem.getGlobalEfficiency(dateStr)
@@ -203,59 +210,94 @@ function updateTrendChart() {
   trendChart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: dates,
+      labels: dateLabels,
       datasets: [{
         label: 'Efisiensi Global Pabrik (%)',
         data: globalEfficiency,
         borderColor: '#ffd166',
         backgroundColor: 'rgba(255, 209, 102, 0.1)',
-        tension: 0,
+        tension: 0.3,
         fill: true,
-        pointRadius: 6,
-        pointHoverRadius: 8
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        borderWidth: 3
       }]
     },
     options: {
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: {
           display: true,
-          labels: { color: '#cbd5e1' }
+          labels: { 
+            color: '#cbd5e1',
+            font: { size: 13 }
+          }
         },
         datalabels: typeof ChartDataLabels !== 'undefined' ? {
-          display: true,
+          display: function(context) {
+            // Hanya tampilkan label di titik dengan data > 0
+            return context.dataset.data[context.dataIndex] > 0
+          },
           color: '#ffd166',
           font: {
             weight: 'bold',
-            size: 12
+            size: 11
           },
           formatter: function(value) {
             return value > 0 ? value + '%' : ''
           },
           anchor: 'end',
           align: 'top',
-          offset: 4
-        } : false
+          offset: 6,
+          rotation: -45
+        } : false,
+        tooltip: {
+          callbacks: {
+            title: function(context) {
+              // Show full date in tooltip
+              const index = context[0].dataIndex
+              const date = new Date()
+              date.setDate(date.getDate() - (29 - index))
+              return date.toLocaleDateString('id-ID', { 
+                weekday: 'long',
+                day: 'numeric', 
+                month: 'long',
+                year: 'numeric'
+              })
+            }
+          }
+        }
       },
       scales: {
-  x: {
-    ticks: { 
-      color: '#cbd5e1',
-      maxRotation: 45,
-      minRotation: 45,
-      autoSkip: true,
-      maxTicksLimit: 15
-    },
-    grid: { color: 'rgba(255, 255, 255, 0.05)' }
-  },
-  y: {
-    beginAtZero: true,
-    max: 100,
-    ticks: { color: '#cbd5e1' },
-    grid: { color: 'rgba(255, 255, 255, 0.05)' }
-  }
-}
+        x: {
+          ticks: { 
+            color: '#cbd5e1',
+            maxRotation: 0,
+            minRotation: 0,
+            font: { size: 11 }
+          },
+          grid: { 
+            color: 'rgba(255, 255, 255, 0.05)',
+            drawBorder: false
+          }
+        },
+        y: {
+          beginAtZero: true,
+          max: 100,
+          ticks: { 
+            color: '#cbd5e1',
+            font: { size: 11 },
+            callback: function(value) {
+              return value + '%'
+            }
+          },
+          grid: { 
+            color: 'rgba(255, 255, 255, 0.05)',
+            drawBorder: false
+          }
+        }
+      }
     }
   })
 }
