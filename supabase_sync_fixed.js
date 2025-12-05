@@ -272,7 +272,7 @@ async function saveMachineToCloud(machineId, constructId, userId, oldConstructId
         id: machineId,
         construct_id: constructId || null,
         last_edited_by: user,
-        last_edited_at: timestamp
+        last_edited_at: timestamp,
         device_id: deviceId
       }, { 
         onConflict: 'id',
@@ -808,5 +808,8 @@ async function saveSingleEfficiencyToCloud(machineId, data) {
     return false
   }
 }
-
+// ============ BIAR BISA DIPAKAI DI FILE LAIN ============
+window.supabaseInit = supabaseInit;
+window.supabaseSignIn = supabaseSignIn;
+window.supabaseSignOut = supabaseSignOut;
 console.log('📦 Supabase sync module loaded');
