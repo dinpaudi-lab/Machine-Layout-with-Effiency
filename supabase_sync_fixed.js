@@ -262,6 +262,7 @@ async function saveMachineToCloud(machineId, constructId, userId, oldConstructId
   try {
     const timestamp = new Date().toISOString();
     const user = userId || getCurrentUserId();
+    const deviceId = getDeviceId();
 
     console.log('💾 Saving machine ' + machineId + ' to cloud...');
 
@@ -272,6 +273,7 @@ async function saveMachineToCloud(machineId, constructId, userId, oldConstructId
         construct_id: constructId || null,
         last_edited_by: user,
         last_edited_at: timestamp
+        device_id: deviceId
       }, { 
         onConflict: 'id',
         ignoreDuplicates: false 
@@ -475,7 +477,11 @@ async function saveHistoryToCloud(historyEntry) {
   }
 }
 
-// ============ REAL-TIME LISTENERS ============
+// ============ REAL-TIME LISTENERS WITH DEBOUNCE ============
+
+let isProcessingUpdate = false
+let lastUpdateTimestamp = 0
+const UPDATE_COOLDOWN = 3000 // 3 detik cooldown
 
 async function setupRealtimeListeners(onMachinesChange, onConstructionsChange, onHistoryChange) {
   if (!isCloudAvailable || !supabase) {
@@ -488,17 +494,50 @@ async function setupRealtimeListeners(onMachinesChange, onConstructionsChange, o
 
     cleanupListeners();
 
+    // MACHINES CHANNEL dengan debounce
     const machinesChannel = supabase
       .channel('public:machines:' + Date.now())
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'machines' },
         async (payload) => {
-          console.log('🔄 Machine update received:', payload.eventType, payload.new ? payload.new.id : '');
-          if (onMachinesChange) {
-            const machines = await loadMachinesFromCloud();
-            if (machines) onMachinesChange(machines);
+          const now = Date.now()
+          
+          // Ignore if recently updated
+          if (now - lastUpdateTimestamp < UPDATE_COOLDOWN) {
+            console.log('⏭️ Skipping update (cooldown)')
+            return
           }
+          
+          // Ignore if currently processing
+          if (isProcessingUpdate) {
+            console.log('⏭️ Skipping update (already processing)')
+            return
+          }
+          
+          // Ignore if this device made the change
+          const deviceId = getDeviceId()
+          if (payload.new && payload.new.device_id === deviceId) {
+            console.log('⏭️ Skipping update (own change)')
+            return
+          }
+          
+          console.log('🔄 Machine update from another device')
+          
+          isProcessingUpdate = true
+          lastUpdateTimestamp = now
+          
+          if (onMachinesChange) {
+            const machines = await loadMachinesFromCloud()
+            if (machines) {
+              onMachinesChange(machines)
+              showToast('📥 Data mesin diupdate dari device lain', 'success')
+            }
+          }
+          
+          setTimeout(() => {
+            isProcessingUpdate = false
+          }, 1000)
         }
       )
       .subscribe((status) => {
@@ -507,17 +546,47 @@ async function setupRealtimeListeners(onMachinesChange, onConstructionsChange, o
 
     realtimeChannels.push(machinesChannel);
 
+    // CONSTRUCTIONS CHANNEL dengan debounce
     const constructionsChannel = supabase
       .channel('public:constructions:' + Date.now())
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'constructions' },
         async (payload) => {
-          console.log('🔄 Construction update received:', payload.eventType);
-          if (onConstructionsChange) {
-            const constructions = await loadConstructionsFromCloud();
-            if (constructions) onConstructionsChange(constructions);
+          const now = Date.now()
+          
+          if (now - lastUpdateTimestamp < UPDATE_COOLDOWN) {
+            console.log('⏭️ Skipping construction update (cooldown)')
+            return
           }
+          
+          if (isProcessingUpdate) {
+            console.log('⏭️ Skipping construction update (processing)')
+            return
+          }
+          
+          const deviceId = getDeviceId()
+          if (payload.new && payload.new.device_id === deviceId) {
+            console.log('⏭️ Skipping construction update (own change)')
+            return
+          }
+          
+          console.log('🔄 Construction update from another device')
+          
+          isProcessingUpdate = true
+          lastUpdateTimestamp = now
+          
+          if (onConstructionsChange) {
+            const constructions = await loadConstructionsFromCloud()
+            if (constructions) {
+              onConstructionsChange(constructions)
+              showToast('📥 Konstruksi diupdate dari device lain', 'success')
+            }
+          }
+          
+          setTimeout(() => {
+            isProcessingUpdate = false
+          }, 1000)
         }
       )
       .subscribe((status) => {
@@ -526,16 +595,29 @@ async function setupRealtimeListeners(onMachinesChange, onConstructionsChange, o
 
     realtimeChannels.push(constructionsChannel);
 
+    // HISTORY CHANNEL (optional, bisa dimatikan kalau bikin lag)
     const historyChannel = supabase
       .channel('public:history:' + Date.now())
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'history' },
         async (payload) => {
-          console.log('🔄 New history entry received');
+          const now = Date.now()
+          
+          if (now - lastUpdateTimestamp < UPDATE_COOLDOWN) {
+            return
+          }
+          
+          const deviceId = getDeviceId()
+          if (payload.new && payload.new.device_id === deviceId) {
+            return
+          }
+          
+          console.log('🔄 New history from another device')
+          
           if (onHistoryChange) {
-            const history = await loadHistoryFromCloud();
-            if (history) onHistoryChange(history);
+            const history = await loadHistoryFromCloud()
+            if (history) onHistoryChange(history)
           }
         }
       )
@@ -545,13 +627,11 @@ async function setupRealtimeListeners(onMachinesChange, onConstructionsChange, o
 
     realtimeChannels.push(historyChannel);
 
-    console.log('✅ Real-time listeners activated');
-    console.log('📊 Active channels: ' + realtimeChannels.length);
+    console.log('✅ Real-time listeners activated with debounce');
   } catch (e) {
     console.error('❌ Setup listeners error:', e);
   }
 }
-
 function cleanupListeners() {
   if (realtimeChannels.length > 0) {
     console.log('🧹 Cleaning up ' + realtimeChannels.length + ' channels...');
