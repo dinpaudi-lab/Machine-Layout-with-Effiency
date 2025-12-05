@@ -68,7 +68,7 @@ function setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, editor) {
     shiftA: parseFloat(shiftA) || 0,
     shiftB: parseFloat(shiftB) || 0,
     shiftC: parseFloat(shiftC) || 0,
-    global: Math.round(global * 10) / 10,
+    global: Math.round(global * 100) / 100,
     timestamp: new Date().toISOString(),
     editor: editor || getCurrentUserId()
   }
@@ -221,10 +221,10 @@ async function importEfficiencyFromExcel(file) {
                 if (shiftB > 0 && shiftB <= 1) shiftB = shiftB * 100
                 if (shiftC > 0 && shiftC <= 1) shiftC = shiftC * 100
                 
-                // Round to 1 decimal
-                shiftA = Math.round(shiftA * 10) / 10
-                shiftB = Math.round(shiftB * 10) / 10
-                shiftC = Math.round(shiftC * 10) / 10
+                // Round to 2 decimal
+                shiftA = Math.round(shiftA * 100) / 100
+                shiftB = Math.round(shiftB * 100) / 100
+                shiftC = Math.round(shiftC * 100) / 100
                 
                 // Convert date to ISO format
                 if (date instanceof Date) {
