@@ -110,13 +110,14 @@ function getBlockEfficiency(blockName, date) {
     if (isMachineOperational(machineId)) {
       const eff = getMachineEfficiency(machineId, targetDate)
       // Tidak ada data = 0 (maintenance/mati)
-      totalGlobal += (eff && eff.global) ? eff.global : 0
+      totalGlobal += (eff && eff.global) ? parseFloat(eff.global) : 0
       operationalCount++
     }
   })
   
   return operationalCount > 0 ? parseFloat((totalGlobal / operationalCount).toFixed(2)) : 0
-  
+}  // ← TAMBAH KURUNG TUTUP INI!
+
 // Get mesin dalam blok tertentu
 function getMachinesInBlock(blockName) {
   const machines = []
