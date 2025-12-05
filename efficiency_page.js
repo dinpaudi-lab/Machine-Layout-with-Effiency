@@ -416,26 +416,53 @@ function attachEventListeners() {
     sortFilter.addEventListener('change', renderEfficiencyGrid)
   }
   
-  const importMachineBtn = document.getElementById('import-efficiency-machine')
-if (importMachineBtn) {
-  importMachineBtn.addEventListener('click', () => {
-    document.getElementById('efficiency-machine-file-input').click()
-  })
-}
+  // Import Mesin button (sesuai dengan efficiency.html)
+  const importMachineBtn = document.getElementById('import-efficiency')
+  if (importMachineBtn) {
+    importMachineBtn.addEventListener('click', () => {
+      const fileInput = document.getElementById('efficiency-machine-file-input')
+      if (fileInput) {
+        fileInput.click()
+      } else {
+        console.error('❌ File input efficiency-machine-file-input tidak ditemukan')
+      }
+    })
+    console.log('✅ Import mesin button listener attached')
+  } else {
+    console.warn('⚠️ import-efficiency button tidak ditemukan')
+  }
 
-const importGlobalBtn = document.getElementById('import-efficiency-global')
-if (importGlobalBtn) {
-  importGlobalBtn.addEventListener('click', () => {
-    document.getElementById('efficiency-global-file-input').click()
-  })
-}
+  // Import Global button
+  const importGlobalBtn = document.getElementById('import-efficiency-global')
+  if (importGlobalBtn) {
+    importGlobalBtn.addEventListener('click', () => {
+      const fileInput = document.getElementById('efficiency-global-file-input')
+      if (fileInput) {
+        fileInput.click()
+      } else {
+        console.error('❌ File input efficiency-global-file-input tidak ditemukan')
+      }
+    })
+    console.log('✅ Import global button listener attached')
+  } else {
+    console.warn('⚠️ import-efficiency-global button tidak ditemukan')
+  }
 
 const machineFileInput = document.getElementById('efficiency-machine-file-input')
 if (machineFileInput) {
+  console.log('✅ Machine file input found')
   machineFileInput.addEventListener('change', async (e) => {
     if (e.target.files[0]) {
+      console.log('📁 File selected:', e.target.files[0].name)
       try {
+        if (!window.efficiencySystem) {
+          throw new Error('Efficiency system not loaded')
+        }
+        
+        console.log('🔄 Starting import...')
         const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
+        console.log('✅ Import result:', result)
+        
         showToast(`✅ Imported ${result.imported} records from ${result.sheetsProcessed} sheets`, 'success')
         
         if (result.errors.length > 0) {
@@ -453,8 +480,13 @@ if (machineFileInput) {
         console.error('Import error:', error)
         showToast('❌ Import failed: ' + error.message, 'warn')
       }
+    } else {
+      console.warn('⚠️ No file selected')
     }
   })
+  console.log('✅ Machine file input listener attached')
+} else {
+  console.error('❌ efficiency-machine-file-input element NOT FOUND')
 }
 
 const globalFileInput = document.getElementById('efficiency-global-file-input')
