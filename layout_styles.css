@@ -191,3 +191,15 @@ input:focus, select:focus{outline:none;background:rgba(255,255,255,0.04)!importa
 .eff-stat-card{animation:slideInBottom .4s ease-out forwards;opacity:0}
 @keyframes slideInBottom{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 
+/* Dropdown styling */
+select option {
+background-color: #0f172a !important;
+     color: #ffffff !important;
+     padding: 10px !important;
+   }
+
+   select option:checked,
+   select option:hover {
+    background-color: #1e293b !important;
+    color: #ffd166 !important;
+   }
