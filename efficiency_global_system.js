@@ -55,7 +55,7 @@ function calculateGlobalShiftEfficiency(counter, pick, machinesRun) {
   if (denominator === 0) return 0
   
   const efficiency = (numerator / denominator) * 100
-  return Math.round(efficiency * 100) / 100
+return parseFloat(efficiency.toFixed(2))
 }
 
 // ============ SET GLOBAL EFFICIENCY ============
@@ -66,7 +66,7 @@ function setGlobalEfficiency(date, counterA, pickA, counterB, pickB, counterC, p
   const shiftB = calculateGlobalShiftEfficiency(counterB, pickB, machinesRun)
   const shiftC = calculateGlobalShiftEfficiency(counterC, pickC, machinesRun)
   
-  const global = Math.round(((shiftA + shiftB + shiftC) / 3) * 10) / 10
+  const global = parseFloat(((shiftA + shiftB + shiftC) / 3).toFixed(2))
   
   globalEfficiencyData[date] = {
     counterA: parseFloat(counterA) || 0,
