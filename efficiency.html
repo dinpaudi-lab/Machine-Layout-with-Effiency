@@ -146,12 +146,37 @@
       margin-bottom: 24px;
     }
     
+    /* Custom scrollbar untuk grafik */
+    .chart-container > div:first-of-type {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 209, 102, 0.5) rgba(255, 255, 255, 0.05);
+    }
+    
+    .chart-container > div:first-of-type::-webkit-scrollbar {
+      height: 8px;
+    }
+    
+    .chart-container > div:first-of-type::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+    }
+    
+    .chart-container > div:first-of-type::-webkit-scrollbar-thumb {
+      background: rgba(255, 209, 102, 0.5);
+      border-radius: 4px;
+    }
+    
+    .chart-container > div:first-of-type::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 209, 102, 0.7);
+    }
+    
     .no-data {
       text-align: center;
       padding: 40px;
       color: #9aa6c0;
       font-size: 14px;
     }
+    
   </style>
 </head>
 <body>
@@ -237,9 +262,9 @@
   <!-- Grafik Trend -->
 <section class="chart-container">
   <h3 style="margin-bottom: 16px;">📊 Trend Efisiensi Global Harian (30 Hari Terakhir)</h3>
-  <div style="overflow-x: auto; overflow-y: hidden;">
-    <div style="min-width: 1200px;">
-      <canvas id="efficiency-trend-chart" height="80"></canvas>
+  <div style="overflow-x: auto; overflow-y: hidden; padding-bottom: 10px;">
+    <div style="min-width: 1400px; height: 320px;">
+      <canvas id="efficiency-trend-chart"></canvas>
     </div>
   </div>
 </section>
