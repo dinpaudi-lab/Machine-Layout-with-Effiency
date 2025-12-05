@@ -55,7 +55,7 @@ function calculateGlobalShiftEfficiency(counter, pick, machinesRun) {
   if (denominator === 0) return 0
   
   const efficiency = (numerator / denominator) * 100
-  return Math.round(efficiency * 10) / 10
+  return Math.round(efficiency * 100) / 100
 }
 
 // ============ SET GLOBAL EFFICIENCY ============
