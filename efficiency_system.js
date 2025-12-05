@@ -420,7 +420,7 @@ function openEfficiencyModal(machineId) {
     const global = shifts.length > 0 
       ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
       : 0
-    document.getElementById('eff-global').textContent = Math.round(global * 10) / 10 + '%'
+    document.getElementById('eff-global').textContent = Math.round(global * 100) / 100 + '%'
   }
   
   inputs.forEach(input => {
