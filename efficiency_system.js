@@ -115,7 +115,7 @@ function getBlockEfficiency(blockName, date) {
     }
   })
   
-  return operationalCount > 0 ? Math.round((totalGlobal / operationalCount) * 10) / 10 : 0
+  return operationalCount > 0 ? Math.round((totalGlobal / operationalCount) * 100) / 100 : 0
 }
 
 // Get mesin dalam blok tertentu
