@@ -229,9 +229,12 @@ async function addHistory(entry) {
     }
   }
   
-  // ✅ PERBAIKAN: Render history langsung setelah ditambahkan
-  console.log('🔄 Rendering history after add...')
-  renderHistory()
+  // ✅ PERBAIKAN: Delay render untuk memastikan DOM ready
+  console.log('🔄 Scheduling history render...')
+  setTimeout(() => {
+    console.log('⏰ Now rendering history...')
+    renderHistory()
+  }, 100)
 }
 
 function getCurrentUserId(){
@@ -1413,6 +1416,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
