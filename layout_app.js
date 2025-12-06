@@ -348,7 +348,15 @@ function attachEventListeners(){
   
 const elSave = $('save-edit')
 if(elSave) {
-  elSave.addEventListener('click', async ()=>{
+  // Remove old listener by cloning
+  const newSaveBtn = elSave.cloneNode(true)
+  elSave.parentNode.replaceChild(newSaveBtn, elSave)
+  
+  newSaveBtn.addEventListener('click', async ()=>{
+    // Disable button to prevent double-click
+    newSaveBtn.disabled = true
+    newSaveBtn.textContent = '💾 Menyimpan...'
+    
     const modal = $('modal')
     const id = Number(modal.dataset.machineId)
     const newC = $('modal-construct').value
@@ -357,41 +365,54 @@ if(elSave) {
     const machineIndex = machines.findIndex(m => m.id === id)
     const old = machineIndex !== -1 ? machines[machineIndex].constructId : null
     
-    // Update local data first
+    console.log('📝 Saving machine:', { id, old, new: newC, editor })
+    
+    // 1. Update local data FIRST
     if(machineIndex !== -1) {
       machines[machineIndex].constructId = newC
       saveMachines()
+      console.log('✅ Local data updated')
     }
     
-    // ✅ UPDATE UI IMMEDIATELY (optimistic update)
+    // 2. Add to history IMMEDIATELY
+    await addHistory({
+      machine: id, 
+      from: old, 
+      to: newC, 
+      editor: editor, 
+      date: new Date().toISOString()
+    })
+    console.log('✅ History added')
+    
+    // 3. Update UI IMMEDIATELY (optimistic update)
+    closeModal()
     renderGrid()
     renderLegend()
+    renderHistory() // ← TAMBAHKAN INI!
     updateChart()
-    closeModal()
-    showToast('💾 Menyimpan...', 'success')
     
-    // Save to cloud in background
+    showToast('✅ Perubahan disimpan', 'success')
+    
+    // 4. Save to cloud in background (non-blocking)
     if (typeof saveMachineToCloud !== 'undefined' && window.isCloudAvailable) {
-      try {
-        await saveMachineToCloud(id, newC, getCurrentUserId(), old)
-        console.log('✅ Machine saved to cloud')
-        showToast('☁️ Tersimpan ke cloud', 'success')
-      } catch (e) {
-        console.error('❌ Cloud save error:', e)
-        showToast('⚠️ Tersimpan lokal (cloud error)', 'warn')
-      }
+      saveMachineToCloud(id, newC, getCurrentUserId(), old)
+        .then(() => {
+          console.log('☁️ Synced to cloud')
+          showToast('☁️ Tersinkron ke cloud', 'success')
+        })
+        .catch((e) => {
+          console.error('❌ Cloud sync error:', e)
+          showToast('⚠️ Cloud sync gagal (data tetap tersimpan lokal)', 'warn')
+        })
     }
     
-    // Save to history
-    await addHistory({
-      machine:id, 
-      from:old, 
-      to:newC, 
-      editor:editor, 
-      date:new Date().toISOString()
-    })
+    // Re-enable button
+    newSaveBtn.disabled = false
+    newSaveBtn.textContent = 'Simpan'
   })
-} 
+  
+  console.log('✅ Save button listener attached')
+}
   const elConstClose = $('close-const-modal')
   if(elConstClose) elConstClose.addEventListener('click', closeConstModal)
   
@@ -517,24 +538,60 @@ function renderHistory(){
     : getHistory()
   
   const el = $('history-list')
-  if(!el) return
-  el.innerHTML=''
+  if(!el) {
+    console.warn('⚠️ history-list element not found')
+    return
+  }
   
-  if(list.length===0){ 
-    el.innerHTML='<div>Tidak ada riwayat.</div>'
+  el.innerHTML = ''
+  
+  console.log('📋 Rendering history:', list.length, 'entries')
+  
+  if(list.length === 0){ 
+    el.innerHTML = '<div style="padding:12px;color:#9aa6c0;text-align:center">Tidak ada riwayat.</div>'
     return 
   }
   
-  list.slice(0, 50).forEach(h=>{ 
-    const div=document.createElement('div')
-    div.className='history-row'
+  list.slice(0, 50).forEach((h, index) => { 
+    const div = document.createElement('div')
+    div.className = 'history-row'
+    
     const machineId = h.machine || h.machine_id
     const timestamp = h.date || h.timestamp
-    const dateStr = timestamp ? new Date(timestamp).toLocaleString() : 'Unknown'
+    const dateStr = timestamp ? new Date(timestamp).toLocaleString('id-ID') : 'Unknown'
     
-    div.innerHTML = `<div><strong>Mesin ${machineId}</strong> : ${h.from} → ${h.to}</div><div>${h.editor} — ${dateStr}</div>`
+    const fromConstruct = getConstructById(h.from)
+    const toConstruct = getConstructById(h.to)
+    
+    const fromName = fromConstruct ? fromConstruct.name : (h.from || 'Tidak ada')
+    const toName = toConstruct ? toConstruct.name : (h.to || 'Tidak ada')
+    
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div>
+          <strong style="color:#ff6ec7">Mesin ${machineId}</strong>
+          <div style="font-size:12px;margin-top:4px">
+            <span style="color:#f97316">${fromName}</span> 
+            → 
+            <span style="color:#34d399">${toName}</span>
+          </div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:#9aa6c0">
+          <div>${h.editor}</div>
+          <div>${dateStr}</div>
+        </div>
+      </div>
+    `
+    
+    // Add animation for new entries
+    if(index === 0) {
+      div.style.animation = 'historyPulse 0.5s ease-out'
+    }
+    
     el.appendChild(div) 
   })
+  
+  console.log('✅ History rendered')
 }
 
 function getConstructById(id){ 
@@ -543,8 +600,13 @@ function getConstructById(id){
 }
 
 function renderGrid(){ 
+  console.log('🎨 Rendering grid...') // ← LOG AWAL
+  
   const grid = $('machine-grid')
-  if(!grid) return
+  if(!grid) {
+    console.error('❌ machine-grid not found') // ← LOG ERROR
+    return
+  }
   
   const q = $('search')
   const filter = q ? q.value.trim() : ''
@@ -600,7 +662,7 @@ function renderGrid(){
     }
   }
   
- function createMachineBox(machineNum, blockName, filter) {
+  function createMachineBox(machineNum, blockName, filter) {
     const m = machines.find(machine => machine.id === machineNum) || {id:machineNum, constructId:null}
     const box = document.createElement('div')
     box.className = 'machine-box'
@@ -614,19 +676,10 @@ function renderGrid(){
     box.title = `Mesin ${machineNum} - Blok ${blockName}`
     box.textContent = machineNum
     
-    // Store actual machine number as data attribute
     box.setAttribute('data-machine-id', machineNum)
     
     const c = constructions.find(x=> x.id === m.constructId)
     box.style.background = c ? c.color : '#262626'
-    
-    // Check if efficiency data exists
-    const effData = efficiencyData && efficiencyData[machineNum]
-    if(effData && effData.average > 0){
-      box.innerHTML = `<div>${machineNum}</div><div style="font-size:9px;opacity:0.8">${Math.round(effData.average)}%</div>`
-    } else {
-      box.textContent = machineNum
-    }
     
     const isMachine = String(machineNum)
     const matches = !filter || isMachine === filter
@@ -639,8 +692,7 @@ function renderGrid(){
       box.style.cursor = 'pointer'
       box.style.border = filter ? '2px solid #ffd166' : '1px solid rgba(255,255,255,0.04)'
       const constructName = c ? c.name : 'Belum ditugaskan'
-      const effText = effData && effData.average > 0 ? `\nEfisiensi: ${Math.round(effData.average)}%` : ''
-      box.title = `Mesin ${machineNum} - Blok ${blockName}\nKonstruksi: ${constructName}${effText}`
+      box.title = `Mesin ${machineNum} - Blok ${blockName}\nKonstruksi: ${constructName}`
       box.addEventListener('click', (e)=>{ 
         const machineId = parseInt(e.currentTarget.getAttribute('data-machine-id'))
         openModal(machineId) 
@@ -684,6 +736,8 @@ function renderGrid(){
   } else {
     searchResultDiv.style.display = 'none'
   }
+  
+  console.log('✅ Grid rendered') // ← LOG AKHIR
 }
 
 function openModal(id){ 
@@ -1348,6 +1402,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
