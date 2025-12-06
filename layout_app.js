@@ -380,24 +380,62 @@ if(elSave) {
     }
     
     // 2. Add to history IMMEDIATELY
-    await addHistory({
+    const historyEntry = {
       machine: id, 
       from: old, 
       to: newC, 
       editor: editor, 
       date: new Date().toISOString()
+    }
+    
+    // ✅ SAVE TO LOCALSTORAGE DIRECTLY (bypass async)
+    const h = getHistory()
+    h.unshift(historyEntry)
+    if(h.length > 1000) h.length = 1000
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(h))
+    console.log('✅ History saved to localStorage:', h.length, 'entries')
+    
+    // Save to cloud in background (non-blocking)
+    if (typeof saveHistoryToCloud !== 'undefined' && window.isCloudAvailable) {
+      saveHistoryToCloud({
+        type: 'general',
+        action: 'update',
+        details: historyEntry,
+        device_id: getDeviceId(),
+        device_name: getDeviceName()
+      }).catch(e => console.warn('Cloud history sync failed:', e))
+    }
+    
+    // 3. Close modal
+    closeModal()
+    
+    // 4. Update ALL UI (with forced delay for DOM)
+    requestAnimationFrame(() => {
+      renderGrid()
+      renderLegend()
+      updateChart()
+      
+      // ✅ FORCE RENDER HISTORY with double-check
+      const historyEl = document.getElementById('history-list')
+      if (historyEl) {
+        renderHistory()
+        console.log('✅ History rendered, children:', historyEl.children.length)
+        
+        // Double-check: if still empty, force again
+        setTimeout(() => {
+          if (historyEl.children.length === 0) {
+            console.warn('⚠️ History empty, forcing render again')
+            renderHistory()
+          }
+        }, 50)
+      } else {
+        console.error('❌ history-list element not found!')
+      }
+      
+      showToast('✅ Perubahan disimpan', 'success')
     })
-    console.log('✅ History added')
     
-    // 3. Update UI IMMEDIATELY (optimistic update)
-closeModal()
-renderGrid()
-renderLegend()
-updateChart()
-    
-showToast('✅ Perubahan disimpan', 'success')
-    
-    // 4. Save to cloud in background (non-blocking)
+    // 5. Save to cloud in background (non-blocking)
     if (typeof saveMachineToCloud !== 'undefined' && window.isCloudAvailable) {
       saveMachineToCloud(id, newC, getCurrentUserId(), old)
         .then(() => {
@@ -1414,6 +1452,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
