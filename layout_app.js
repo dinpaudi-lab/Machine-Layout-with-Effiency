@@ -329,15 +329,23 @@ function renderConstructList(){
 
 function attachEventListeners(){
   const elLogout = $('logout-btn')
-  if(elLogout){
-    elLogout.addEventListener('click', ()=>{
-      if(confirm('Anda yakin ingin logout?')){
-        localStorage.removeItem(SESSION_KEY)
-        localStorage.removeItem(CURRENT_USER_KEY)
+if(elLogout){
+  elLogout.addEventListener('click', ()=>{
+    if(confirm('Anda yakin ingin logout?')){
+      // Gunakan auth_redirect logout function
+      if (window.authRedirect && window.authRedirect.logout) {
+        window.authRedirect.logout()
+      } else {
+        // Fallback manual
+        localStorage.removeItem('app_session_token')
+        localStorage.removeItem('current_user')
+        localStorage.removeItem('currentUserId')
+        localStorage.removeItem('currentUserEmail')
         window.location.href = 'login.html'
       }
-    })
-  }
+    }
+  })
+}
   
   const efficiencyBtn = $('efficiency-btn')
   if(efficiencyBtn){
@@ -1450,6 +1458,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
