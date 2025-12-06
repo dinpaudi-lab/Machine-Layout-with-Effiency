@@ -1,5 +1,5 @@
 // Login authentication script - Supabase version with proper initialization
-const SESSION_KEY = 'app_session_token'
+// SESSION_KEY now defined in auth_redirect.js
 
 // Wait for Supabase to be loaded
 function waitForSupabase() {
@@ -68,8 +68,8 @@ document.addEventListener('DOMContentLoaded', async function(){
       if(user){
         console.log('✅ Login successful:', email)
         
-        // Save session
-        localStorage.setItem(SESSION_KEY, btoa(email + ':' + Date.now()))
+        // Save session - use constant from auth_redirect.js
+        localStorage.setItem('app_session_token', btoa(email + ':' + Date.now()))
         localStorage.setItem('current_user', email)
         localStorage.setItem('currentUserId', user.uid)
         localStorage.setItem('currentUserEmail', email)
@@ -77,9 +77,13 @@ document.addEventListener('DOMContentLoaded', async function(){
         // Show success message
         showSuccess('Login berhasil! Mengalihkan...')
         
-        // Redirect after delay
+        // Redirect after delay using auth_redirect function
         setTimeout(() => {
-          window.location.href = 'layout.html'
+          if (window.authRedirect && window.authRedirect.redirectToMain) {
+            window.authRedirect.redirectToMain()
+          } else {
+            window.location.href = 'layout.html'
+          }
         }, 800)
       }
     } catch (error) {
