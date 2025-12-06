@@ -40,8 +40,8 @@ function saveEfficiencyData() {
     console.log('💾 Efficiency data saved')
     
     // Sync to cloud if available
-    if (typeof saveEfficiencyToCloudV2 !== 'undefined' && window.isCloudAvailable) {
-      saveEfficiencyToCloudV2(efficiencyData).catch(e => 
+    if (typeof saveEfficiencyToCloud !== 'undefined' && window.isCloudAvailable) {
+      saveEfficiencyToCloud(efficiencyData).catch(e => 
         console.warn('Cloud efficiency sync failed:', e)
       )
     }
