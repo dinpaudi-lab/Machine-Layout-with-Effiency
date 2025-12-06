@@ -201,11 +201,14 @@ function getHistory() {
 }
 
 async function addHistory(entry) { 
+  console.log('📝 Adding history entry:', entry)
+  
   const h = getHistory()
   h.unshift(entry)
   if(h.length > 1000) h.length = 1000
   
   localStorage.setItem(HISTORY_KEY, JSON.stringify(h))
+  console.log('💾 History saved to localStorage, total entries:', h.length)
   
   if (isCloudSyncEnabled) {
     cloudHistory = h
@@ -226,7 +229,9 @@ async function addHistory(entry) {
     }
   }
   
-  renderHistory() 
+  // ✅ PERBAIKAN: Render history langsung setelah ditambahkan
+  console.log('🔄 Rendering history after add...')
+  renderHistory()
 }
 
 function getCurrentUserId(){
@@ -389,11 +394,7 @@ closeModal()
 renderGrid()
 renderLegend()
 updateChart()
-
-// ✅ PERBAIKAN: Force render history setelah save
-console.log('🔄 Rendering history after save...')
-renderHistory()
-
+    
 showToast('✅ Perubahan disimpan', 'success')
     
     // 4. Save to cloud in background (non-blocking)
@@ -536,21 +537,23 @@ function populateModalConstruct(){
 }
 
 function renderHistory(){ 
+  console.log('🎨 renderHistory() called')
+  
   const list = window.cloudHistory && window.cloudHistory.length > 0 
     ? window.cloudHistory 
     : getHistory()
   
   const el = $('history-list')
   if(!el) {
-    console.warn('⚠️ history-list element not found')
+    console.error('❌ history-list element not found in DOM')
     return
   }
   
-  el.innerHTML = ''
-  
   console.log('📋 Rendering history:', list.length, 'entries')
   
-  if(list.length === 0){ 
+  el.innerHTML = ''
+  
+  if(list.length === 0){
     el.innerHTML = '<div style="padding:12px;color:#9aa6c0;text-align:center">Tidak ada riwayat.</div>'
     return 
   }
@@ -591,10 +594,10 @@ function renderHistory(){
       div.style.animation = 'historyPulse 0.5s ease-out'
     }
     
-    el.appendChild(div) 
+  el.appendChild(div) 
   })
   
-  console.log('✅ History rendered')
+  console.log('✅ History rendered successfully, total shown:', Math.min(list.length, 50))
 }
 
 function getConstructById(id){ 
@@ -1405,6 +1408,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
