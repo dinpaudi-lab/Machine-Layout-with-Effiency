@@ -349,44 +349,49 @@ function attachEventListeners(){
 const elSave = $('save-edit')
 if(elSave) {
   elSave.addEventListener('click', async ()=>{
-  const modal = $('modal')
-  const id = Number(modal.dataset.machineId)
-  const newC = $('modal-construct').value
-  const editor = $('modal-editor').value || 'Unknown'
-  
-  const machineIndex = machines.findIndex(m => m.id === id)
-  const old = machineIndex !== -1 ? machines[machineIndex].constructId : null
-  
-  if(machineIndex !== -1) {
-    machines[machineIndex].constructId = newC
-    saveMachines()
-  }
-  
-  // Save to cloud
-  if (typeof saveMachineToCloud !== 'undefined' && window.isCloudAvailable) {
-    try {
-      await saveMachineToCloud(id, newC, getCurrentUserId(), old)
-      console.log('✅ Machine saved to cloud')
-    } catch (e) {
-      console.error('❌ Cloud save error:', e)
+    const modal = $('modal')
+    const id = Number(modal.dataset.machineId)
+    const newC = $('modal-construct').value
+    const editor = $('modal-editor').value || 'Unknown'
+    
+    const machineIndex = machines.findIndex(m => m.id === id)
+    const old = machineIndex !== -1 ? machines[machineIndex].constructId : null
+    
+    // Update local data first
+    if(machineIndex !== -1) {
+      machines[machineIndex].constructId = newC
+      saveMachines()
     }
-  }
-  
-  await addHistory({
-    machine:id, 
-    from:old, 
-    to:newC, 
-    editor:editor, 
-    date:new Date().toISOString()
+    
+    // ✅ UPDATE UI IMMEDIATELY (optimistic update)
+    renderGrid()
+    renderLegend()
+    updateChart()
+    closeModal()
+    showToast('💾 Menyimpan...', 'success')
+    
+    // Save to cloud in background
+    if (typeof saveMachineToCloud !== 'undefined' && window.isCloudAvailable) {
+      try {
+        await saveMachineToCloud(id, newC, getCurrentUserId(), old)
+        console.log('✅ Machine saved to cloud')
+        showToast('☁️ Tersimpan ke cloud', 'success')
+      } catch (e) {
+        console.error('❌ Cloud save error:', e)
+        showToast('⚠️ Tersimpan lokal (cloud error)', 'warn')
+      }
+    }
+    
+    // Save to history
+    await addHistory({
+      machine:id, 
+      from:old, 
+      to:newC, 
+      editor:editor, 
+      date:new Date().toISOString()
+    })
   })
-  
-  closeModal()
-  renderGrid()
-  renderLegend()
-  updateChart()
-  showToast('Mesin diperbarui ☁️', 'success')
-})
-}  
+} 
   const elConstClose = $('close-const-modal')
   if(elConstClose) elConstClose.addEventListener('click', closeConstModal)
   
@@ -1343,6 +1348,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
