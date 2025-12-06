@@ -232,62 +232,16 @@ function setupConflictDetection() {
   }
 }
 
-// Add activity indicator
-function showActiveUsers() {
-  const indicator = document.createElement('div')
-  indicator.id = 'active-users-indicator'
-  indicator.style.cssText = `
-    position: fixed;
-    top: 80px;
-    right: 20px;
-    background: rgba(15, 23, 42, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 12px 16px;
-    z-index: 9998;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    font-size: 13px;
-    color: #fff;
-  `
-  
-  indicator.innerHTML = `
-    <div style="
-      width: 8px;
-      height: 8px;
-      background: #34d399;
-      border-radius: 50%;
-      animation: pulse 2s ease-in-out infinite;
-    "></div>
-    <span id="active-count">1 device online</span>
-  `
-  
-  const style = document.createElement('style')
-  style.textContent = `
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.2); }
-    }
-  `
-  document.head.appendChild(style)
-  
-  document.body.appendChild(indicator)
-}
-
 // Initialize
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       setupConflictDetection()
-      showActiveUsers()
     }, 2000)
   })
 } else {
   setTimeout(() => {
     setupConflictDetection()
-    showActiveUsers()
   }, 2000)
 }
 
