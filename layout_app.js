@@ -385,13 +385,16 @@ if(elSave) {
     console.log('✅ History added')
     
     // 3. Update UI IMMEDIATELY (optimistic update)
-    closeModal()
-    renderGrid()
-    renderLegend()
-    renderHistory() // ← TAMBAHKAN INI!
-    updateChart()
-    
-    showToast('✅ Perubahan disimpan', 'success')
+closeModal()
+renderGrid()
+renderLegend()
+updateChart()
+
+// ✅ PERBAIKAN: Force render history setelah save
+console.log('🔄 Rendering history after save...')
+renderHistory()
+
+showToast('✅ Perubahan disimpan', 'success')
     
     // 4. Save to cloud in background (non-blocking)
     if (typeof saveMachineToCloud !== 'undefined' && window.isCloudAvailable) {
@@ -1402,6 +1405,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
