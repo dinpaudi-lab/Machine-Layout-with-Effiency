@@ -543,19 +543,15 @@ function renderHistory(){
     ? window.cloudHistory 
     : getHistory()
   
-  const el = $('history-list')
+  const el = document.getElementById('history-list')
   if(!el) {
     console.error('❌ history-list element not found in DOM')
     return
   }
   
   console.log('📋 Rendering history:', list.length, 'entries')
-  console.log('🔍 Element before clear:', el.children.length, 'children')
-  console.log('🔍 Element display:', window.getComputedStyle(el).display)
-  console.log('🔍 Element visibility:', window.getComputedStyle(el).visibility)
   
   el.innerHTML = ''
-  console.log('🧹 Cleared, now has:', el.children.length, 'children')
   
   if(list.length === 0){ 
     el.innerHTML = '<div style="padding:12px;color:#9aa6c0;text-align:center">Tidak ada riwayat.</div>'
@@ -563,8 +559,8 @@ function renderHistory(){
     return 
   }
   
-  let added = 0
-  list.slice(0, 50).forEach((h, index) => { 
+  // ✅ FIX: Render ALL items, tidak ada slice
+  list.forEach((h, index) => { 
     const div = document.createElement('div')
     div.className = 'history-row'
     div.style.cssText = 'background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;margin-bottom:8px'
@@ -578,6 +574,12 @@ function renderHistory(){
     
     const fromName = fromConstruct ? fromConstruct.name : (h.from || 'Tidak ada')
     const toName = toConstruct ? toConstruct.name : (h.to || 'Tidak ada')
+    
+    // ✅ HIGHLIGHT untuk entry terbaru (first item)
+    if (index === 0) {
+      div.style.background = 'rgba(255,110,199,0.15)'
+      div.style.border = '1px solid rgba(255,110,199,0.3)'
+    }
     
     div.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:start">
@@ -597,19 +599,12 @@ function renderHistory(){
     `
     
     el.appendChild(div)
-    added++
   })
   
-  console.log('✅ Added', added, 'history rows')
-  console.log('🔍 Element after render:', el.children.length, 'children')
-  console.log('🔍 First child:', el.children[0] ? 'EXISTS' : 'NULL')
+  console.log('✅ History rendered:', list.length, 'items displayed')
   
-  // Force repaint dengan cara paling brutal
-  el.style.display = 'none'
-  el.offsetHeight // trigger reflow
-  el.style.display = 'block'
-  
-  console.log('✅ History rendered successfully, total shown:', Math.min(list.length, 50))
+  // ✅ FORCE browser repaint
+  el.offsetHeight
 }
 function getConstructById(id){ 
   if(!id) return null
@@ -1419,6 +1414,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
