@@ -554,60 +554,56 @@ function renderHistory(){
   
   console.log('📋 Rendering history:', list.length, 'entries')
   
-  // ✅ PERBAIKAN: Force browser to reflow before updating
-  el.style.display = 'none'
-  void el.offsetHeight // Trigger reflow
-  el.style.display = ''
+  // ✅ PERBAIKAN: Paksa browser repaint dengan cara brutal
+  const parent = el.parentElement
+  const nextSibling = el.nextSibling
+  parent.removeChild(el)
   
   el.innerHTML = ''
   
-  if(list.length === 0){
+  if(list.length === 0){ 
     el.innerHTML = '<div style="padding:12px;color:#9aa6c0;text-align:center">Tidak ada riwayat.</div>'
-    return 
-  }
-  
-  list.slice(0, 50).forEach((h, index) => { 
-    const div = document.createElement('div')
-    div.className = 'history-row'
-    
-    const machineId = h.machine || h.machine_id
-    const timestamp = h.date || h.timestamp
-    const dateStr = timestamp ? new Date(timestamp).toLocaleString('id-ID') : 'Unknown'
-    
-    const fromConstruct = getConstructById(h.from)
-    const toConstruct = getConstructById(h.to)
-    
-    const fromName = fromConstruct ? fromConstruct.name : (h.from || 'Tidak ada')
-    const toName = toConstruct ? toConstruct.name : (h.to || 'Tidak ada')
-    
-    div.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:start">
-        <div>
-          <strong style="color:#ff6ec7">Mesin ${machineId}</strong>
-          <div style="font-size:12px;margin-top:4px">
-            <span style="color:#f97316">${fromName}</span> 
-            → 
-            <span style="color:#34d399">${toName}</span>
+  } else {
+    list.slice(0, 50).forEach((h, index) => { 
+      const div = document.createElement('div')
+      div.className = 'history-row'
+      
+      const machineId = h.machine || h.machine_id
+      const timestamp = h.date || h.timestamp
+      const dateStr = timestamp ? new Date(timestamp).toLocaleString('id-ID') : 'Unknown'
+      
+      const fromConstruct = getConstructById(h.from)
+      const toConstruct = getConstructById(h.to)
+      
+      const fromName = fromConstruct ? fromConstruct.name : (h.from || 'Tidak ada')
+      const toName = toConstruct ? toConstruct.name : (h.to || 'Tidak ada')
+      
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:start">
+          <div>
+            <strong style="color:#ff6ec7">Mesin ${machineId}</strong>
+            <div style="font-size:12px;margin-top:4px">
+              <span style="color:#f97316">${fromName}</span> 
+              → 
+              <span style="color:#34d399">${toName}</span>
+            </div>
+          </div>
+          <div style="text-align:right;font-size:11px;color:#9aa6c0">
+            <div>${h.editor}</div>
+            <div>${dateStr}</div>
           </div>
         </div>
-        <div style="text-align:right;font-size:11px;color:#9aa6c0">
-          <div>${h.editor}</div>
-          <div>${dateStr}</div>
-        </div>
-      </div>
-    `
-    
-    // Add animation for new entries
-    if(index === 0) {
-      div.style.animation = 'historyPulse 0.5s ease-out'
-    }
-    
-  el.appendChild(div) 
-  })
+      `
+      
+      el.appendChild(div) 
+    })
+  }
+  
+  // Taruh balik ke DOM
+  parent.insertBefore(el, nextSibling)
   
   console.log('✅ History rendered successfully, total shown:', Math.min(list.length, 50))
 }
-
 function getConstructById(id){ 
   if(!id) return null
   return constructions.find(c=> c.id === id) || null 
@@ -1416,6 +1412,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
