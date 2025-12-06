@@ -234,7 +234,7 @@ async function addHistory(entry) {
   setTimeout(() => {
     console.log('⏰ Now rendering history...')
     renderHistory()
-  }, 100)
+  }, 300)
 }
 
 function getCurrentUserId(){
@@ -1416,6 +1416,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
