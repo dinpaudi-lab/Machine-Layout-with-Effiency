@@ -98,7 +98,9 @@ const TOTAL_MACHINES = 640
 const STORAGE_KEY = 'layout_machines_v1'
 const HISTORY_KEY = 'layout_history_v1'
 const CONSTS_KEY = 'layout_constructions_v1'
-const SESSION_KEY = 'app_session_token'
+
+// Session keys now defined in auth_redirect.js
+const SESSION_KEY = 'app_session_token' // Keep for backward compatibility
 const CURRENT_USER_KEY = 'current_user'
 
 // Block definition
@@ -1452,6 +1454,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
