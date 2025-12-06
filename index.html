@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout Mesin Rapier - Loading...</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #fff;
+    }
+    
+    .loader-container {
+      text-align: center;
+      animation: fadeIn 0.5s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .logo {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 32px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    .logo img {
+      width: 100%;
+      height: 100%;
+      border-radius: 20px;
+      object-fit: contain;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+    
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      }
+      50% {
+        transform: scale(1.05);
+        box-shadow: 0 25px 70px rgba(255, 209, 102, 0.3);
+      }
+    }
+    
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      background: linear-gradient(90deg, #ffd166, #ff6ec7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .subtitle {
+      font-size: 16px;
+      color: #cbd5e1;
+      margin-bottom: 32px;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      margin: 0 auto;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #ffd166;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    .status {
+      margin-top: 24px;
+      font-size: 13px;
+      color: #9aa6c0;
+      min-height: 20px;
+    }
+    
+    .status.checking::after {
+      content: '';
+      animation: dots 1.5s steps(3, end) infinite;
+    }
+    
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+  </style>
+</head>
+<body>
+  <div class="loader-container">
+    <div class="logo">
+      <img src="https://cdnb.uns.ac.id/cdc/image/2022/03/tE6YvomIvLcTJTHcC8GB2acYc5Xv9W60.png" alt="Logo" />
+    </div>
+    
+    <h1>Layout Mesin Rapier</h1>
+    <p class="subtitle">Delta Merlin Dunia Tekstil VIII</p>
+    
+    <div class="spinner"></div>
+    
+    <div id="status" class="status checking">Memeriksa autentikasi</div>
+  </div>
+  
+  <script src="auth_redirect.js"></script>
+  <script>
+    // Update status message
+    const statusEl = document.getElementById('status')
+    
+    function updateStatus(message, className = 'checking') {
+      statusEl.textContent = message
+      statusEl.className = 'status ' + className
+    }
+    
+    // Check authentication and redirect
+    async function checkAndRedirect() {
+      try {
+        updateStatus('Memeriksa autentikasi')
+        
+        // Wait a moment for dramatic effect
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const hasValidSession = window.authRedirect.isSessionValid()
+        
+        if (hasValidSession) {
+          updateStatus('✅ Sudah login, mengalihkan...')
+          
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Redirect to main page
+          window.location.href = 'layout.html'
+        } else {
+          updateStatus('🔒 Belum login, mengalihkan...')
+          
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Redirect to login
+          window.location.href = 'login.html'
+        }
+      } catch (e) {
+        console.error('❌ Redirect error:', e)
+        updateStatus('❌ Terjadi kesalahan')
+        
+        // Fallback to login page
+        setTimeout(() => {
+          window.location.href = 'login.html'
+        }, 2000)
+      }
+    }
+    
+    // Start redirect process
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', checkAndRedirect)
+    } else {
+      checkAndRedirect()
+    }
+  </script>
+</body>
+</html>
