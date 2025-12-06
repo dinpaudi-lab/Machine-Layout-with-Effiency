@@ -99,10 +99,6 @@ const STORAGE_KEY = 'layout_machines_v1'
 const HISTORY_KEY = 'layout_history_v1'
 const CONSTS_KEY = 'layout_constructions_v1'
 
-// Session keys now defined in auth_redirect.js
-const SESSION_KEY = 'app_session_token' // Keep for backward compatibility
-const CURRENT_USER_KEY = 'current_user'
-
 // Block definition
 const BLOCKS = {
   A: [{start: 1, end: 160}],
@@ -1454,6 +1450,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
