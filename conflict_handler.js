@@ -23,17 +23,33 @@ function stopEditing() {
 function detectConflict(currentState, incomingState, itemType, itemId) {
   const key = `${itemType}_${itemId}`
   
+  // First time seeing this item - no conflict
   if (!lastKnownState[key]) {
     lastKnownState[key] = currentState
     return false
   }
   
+  // Not editing - no conflict
+  if (!isEditing || editingItemId !== key) {
+    lastKnownState[key] = currentState
+    return false
+  }
+  
   // Check if incoming state is different from what we expect
-  if (JSON.stringify(lastKnownState[key]) !== JSON.stringify(currentState)) {
-    // Someone else changed it while we were editing
-    if (isEditing && editingItemId === key) {
-      return true // CONFLICT!
-    }
+  // Only detect conflict if we're currently editing AND state changed externally
+  const lastState = lastKnownState[key]
+  const currentStateStr = JSON.stringify(currentState)
+  const lastStateStr = JSON.stringify(lastState)
+  
+  if (lastStateStr !== currentStateStr) {
+    console.log('🔍 Conflict detected:', {
+      key,
+      lastState,
+      currentState,
+      isEditing,
+      editingItemId
+    })
+    return true // CONFLICT!
   }
   
   return false
@@ -157,42 +173,62 @@ function setupConflictDetection() {
   const originalSaveMachine = window.saveMachineToCloud
   if (originalSaveMachine) {
     window.saveMachineToCloud = async function(machineId, constructId, userId, oldConstructId) {
-      const currentState = { constructId, oldConstructId }
+      console.log('🔒 Conflict check for machine', machineId)
       
-      if (detectConflict(currentState, null, 'machine', machineId)) {
-        showConflictWarning('Machine', machineId, 'Another device')
-        return false
+      const currentState = { constructId, oldConstructId, timestamp: Date.now() }
+      
+      // Only check conflict if user is actively editing this machine
+      if (isEditing && editingItemId === `machine_${machineId}`) {
+        if (detectConflict(currentState, null, 'machine', machineId)) {
+          console.log('⚠️ Conflict detected for machine', machineId)
+          showConflictWarning('Machine', machineId, 'Another device')
+          return false
+        }
       }
       
+      // Proceed with save
+      console.log('✅ No conflict, proceeding with save')
       const result = await originalSaveMachine(machineId, constructId, userId, oldConstructId)
       
       if (result) {
         lastKnownState[`machine_${machineId}`] = currentState
+        console.log('✅ State updated after successful save')
       }
       
       return result
     }
+    console.log('✅ Machine conflict wrapper installed')
   }
   
   // Monitor constructions
   const originalSaveConstruction = window.saveConstructionToCloud
   if (originalSaveConstruction) {
     window.saveConstructionToCloud = async function(construction, userId, isNew) {
-      const currentState = { ...construction }
+      console.log('🔒 Conflict check for construction', construction.id)
       
-      if (detectConflict(currentState, null, 'construction', construction.id)) {
-        showConflictWarning('Construction', construction.id, 'Another device')
-        return false
+      const currentState = { ...construction, timestamp: Date.now() }
+      
+      // Only check conflict if user is actively editing this construction
+      if (isEditing && editingItemId === `construction_${construction.id}`) {
+        if (detectConflict(currentState, null, 'construction', construction.id)) {
+          console.log('⚠️ Conflict detected for construction', construction.id)
+          showConflictWarning('Construction', construction.id, 'Another device')
+          return false
+        }
       }
       
+      // Proceed with save
+      console.log('✅ No conflict, proceeding with save')
       const result = await originalSaveConstruction(construction, userId, isNew)
       
       if (result) {
         lastKnownState[`construction_${construction.id}`] = currentState
+        console.log('✅ State updated after successful save')
       }
       
       return result
     }
+    console.log('✅ Construction conflict wrapper installed')
   }
 }
 
