@@ -1,5 +1,4 @@
 // Login authentication script - Supabase version with proper initialization
-// SESSION_KEY now defined in auth_redirect.js
 
 // Wait for Supabase to be loaded
 function waitForSupabase() {
@@ -116,3 +115,4 @@ document.addEventListener('DOMContentLoaded', async function(){
     errorMessage.classList.add('show')
   }
 })
+
