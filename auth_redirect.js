@@ -1,16 +1,16 @@
 // ============ AUTHENTICATION & REDIRECT SYSTEM ============
 // Mengatur redirect otomatis dan proteksi halaman
 
-const SESSION_KEY = 'app_session_token'
-const CURRENT_USER_KEY = 'current_user'
-const LOGIN_PAGE = 'login.html'
-const MAIN_PAGE = 'layout.html'
+const AUTH_SESSION_KEY = 'app_session_token'
+const AUTH_CURRENT_USER_KEY = 'current_user'
+const AUTH_LOGIN_PAGE = 'login.html'
+const AUTH_MAIN_PAGE = 'layout.html'
 
 // ============ SESSION VALIDATION ============
 
 function isSessionValid() {
-  const token = localStorage.getItem(SESSION_KEY)
-  const user = localStorage.getItem(CURRENT_USER_KEY)
+  const token = localStorage.getItem(AUTH_SESSION_KEY)
+  const user = localStorage.getItem(AUTH_CURRENT_USER_KEY)
   
   if (!token || !user) {
     return false
@@ -45,8 +45,8 @@ function isSessionValid() {
 }
 
 function clearSession() {
-  localStorage.removeItem(SESSION_KEY)
-  localStorage.removeItem(CURRENT_USER_KEY)
+  localStorage.removeItem(AUTH_SESSION_KEY)
+  localStorage.removeItem(AUTH_CURRENT_USER_KEY)
   localStorage.removeItem('currentUserId')
   localStorage.removeItem('currentUserEmail')
 }
@@ -72,7 +72,7 @@ function isProtectedPage() {
 
 function isLoginPage() {
   const currentPage = getCurrentPage()
-  return currentPage === LOGIN_PAGE
+  return currentPage === AUTH_LOGIN_PAGE
 }
 
 // ============ REDIRECT LOGIC ============
@@ -80,13 +80,13 @@ function isLoginPage() {
 function redirectToLogin() {
   const currentPage = getCurrentPage()
   
-  if (currentPage !== LOGIN_PAGE) {
+  if (currentPage !== AUTH_LOGIN_PAGE) {
     console.log('🔒 Not authenticated, redirecting to login...')
     
     // Save return URL
     sessionStorage.setItem('return_url', currentPage)
     
-    window.location.href = LOGIN_PAGE
+    window.location.href = AUTH_LOGIN_PAGE
   }
 }
 
@@ -95,12 +95,12 @@ function redirectToMain() {
   const returnUrl = sessionStorage.getItem('return_url')
   sessionStorage.removeItem('return_url')
   
-  if (returnUrl && returnUrl !== LOGIN_PAGE) {
+  if (returnUrl && returnUrl !== AUTH_LOGIN_PAGE) {
     console.log('↩️ Redirecting to:', returnUrl)
     window.location.href = returnUrl
   } else {
     console.log('✅ Redirecting to main page...')
-    window.location.href = MAIN_PAGE
+    window.location.href = AUTH_MAIN_PAGE
   }
 }
 
@@ -149,17 +149,17 @@ function logout() {
     supabaseSignOut().catch(e => console.warn('Supabase signout error:', e))
   }
   
-  window.location.href = LOGIN_PAGE
+  window.location.href = AUTH_LOGIN_PAGE
 }
 
 // ============ SESSION REFRESH ============
 
 function refreshSession() {
-  const user = localStorage.getItem(CURRENT_USER_KEY)
+  const user = localStorage.getItem(AUTH_CURRENT_USER_KEY)
   if (user && isSessionValid()) {
     // Update timestamp
     const newToken = btoa(user + ':' + Date.now())
-    localStorage.setItem(SESSION_KEY, newToken)
+    localStorage.setItem(AUTH_SESSION_KEY, newToken)
     console.log('🔄 Session refreshed')
     return true
   }
