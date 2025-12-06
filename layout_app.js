@@ -551,6 +551,11 @@ function renderHistory(){
   
   console.log('📋 Rendering history:', list.length, 'entries')
   
+  // ✅ PERBAIKAN: Force browser to reflow before updating
+  el.style.display = 'none'
+  void el.offsetHeight // Trigger reflow
+  el.style.display = ''
+  
   el.innerHTML = ''
   
   if(list.length === 0){
@@ -1408,6 +1413,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
