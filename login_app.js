@@ -1,96 +1,46 @@
-// Login authentication script - Supabase version with proper initialization
-
-// Wait for Supabase to be loaded
-function waitForSupabase() {
-  return new Promise((resolve, reject) => {
-    let attempts = 0
-    const maxAttempts = 50
-    
-    const checkSupabase = setInterval(() => {
-      attempts++
-      
-      if (typeof supabaseInit !== 'undefined') {
-        clearInterval(checkSupabase)
-        resolve(true)
-      } else if (attempts >= maxAttempts) {
-        clearInterval(checkSupabase)
-        reject(new Error('Supabase failed to load'))
-      }
-    }, 100)
-  })
-}
-
-document.addEventListener('DOMContentLoaded', async function(){
+document.addEventListener('DOMContentLoaded', function(){
   const form = document.getElementById('login-form')
   const usernameInput = document.getElementById('username')
   const passwordInput = document.getElementById('password')
   const errorMessage = document.getElementById('error-message')
   const loginBtn = form.querySelector('.login-btn')
   
-  // Wait for Supabase to be available
-  try {
-    console.log('⏳ Waiting for Supabase...')
-    await waitForSupabase()
-    console.log('✅ Supabase functions available')
-    
-    // Initialize Supabase
-    await supabaseInit()
-    console.log('✅ Supabase initialized')
-  } catch (e) {
-    console.error('❌ Supabase initialization error:', e)
-    showError('Gagal memuat sistem. Refresh halaman.')
-    return
+  const users = {
+    'didin@company.com': '86532',
+    'indra@company.com': '86086',
+    'nur@company.com': '80229',
+    'desi@company.com': '82847'
   }
   
-  form.addEventListener('submit', async function(e){
+  form.addEventListener('submit', function(e){
     e.preventDefault()
     
     const email = usernameInput.value.trim()
     const password = passwordInput.value
     
-    console.log('🔐 Login attempt:', email)
-    
-    // Validate
     if(!email || !password){
       showError('Email dan sandi harus diisi')
       return
     }
     
-    // Show loading
     loginBtn.disabled = true
     loginBtn.textContent = 'Memproses...'
     
-    try {
-      // Authenticate
-      const user = await supabaseSignIn(email, password)
+    if(users[email] && users[email] === password){
+      localStorage.setItem('app_session_token', btoa(email + ':' + Date.now()))
+      localStorage.setItem('current_user', email)
+      localStorage.setItem('currentUserId', email.replace(/[^a-z0-9]/g, '_'))
+      localStorage.setItem('currentUserEmail', email)
       
-      if(user){
-        console.log('✅ Login successful:', email)
-        
-        // Save session - use constant from auth_redirect.js
-        localStorage.setItem('app_session_token', btoa(email + ':' + Date.now()))
-        localStorage.setItem('current_user', email)
-        localStorage.setItem('currentUserId', user.uid)
-        localStorage.setItem('currentUserEmail', email)
-        
-        // Show success message
-        showSuccess('Login berhasil! Mengalihkan...')
-        
-        // Redirect after delay using auth_redirect function
-        setTimeout(() => {
-          if (window.authRedirect && window.authRedirect.redirectToMain) {
-            window.authRedirect.redirectToMain()
-          } else {
-            window.location.href = 'layout.html'
-          }
-        }, 800)
-      }
-    } catch (error) {
-      console.error('❌ Login error:', error.message)
+      showSuccess('Login berhasil! Mengalihkan...')
+      
+      setTimeout(() => {
+        window.location.href = 'layout.html'
+      }, 500)
+    } else {
       showError('Email atau sandi salah')
       passwordInput.value = ''
       passwordInput.focus()
-    } finally {
       loginBtn.disabled = false
       loginBtn.textContent = 'Masuk'
     }
@@ -102,9 +52,7 @@ document.addEventListener('DOMContentLoaded', async function(){
     errorMessage.style.borderColor = 'rgba(239, 68, 68, 0.3)'
     errorMessage.style.color = '#fca5a5'
     errorMessage.classList.add('show')
-    setTimeout(() => {
-      errorMessage.classList.remove('show')
-    }, 4000)
+    setTimeout(() => errorMessage.classList.remove('show'), 4000)
   }
   
   function showSuccess(message){
@@ -115,4 +63,3 @@ document.addEventListener('DOMContentLoaded', async function(){
     errorMessage.classList.add('show')
   }
 })
-
