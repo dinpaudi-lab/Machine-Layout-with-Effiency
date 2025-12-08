@@ -264,6 +264,11 @@ async function importEfficiencyFromExcel(file) {
           console.warn('⚠️ Import errors:', errors)
         }
         
+        if (typeof saveEfficiencyToCloud !== 'undefined' && window.isCloudAvailable) {
+        console.log('☁️ Syncing to cloud...')
+        await saveEfficiencyToCloud(efficiencyData)
+        console.log('✅ Synced')
+        }
         resolve({ imported, errors, sheetsProcessed })
       } catch (error) {
         console.error('❌ Excel import error:', error)
