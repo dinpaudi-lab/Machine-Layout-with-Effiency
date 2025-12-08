@@ -323,36 +323,64 @@ async function loadGlobalEfficiencyFromCloud() {
   }
 }
 
+let machineUpdateTimeout = null;
+let constructUpdateTimeout = null;
+let historyUpdateTimeout = null;
+
 async function setupRealtimeListeners(onMachines, onConstructs, onHistory) {
   if (!isCloudAvailable || !supabase) return;
   cleanupListeners();
   
   const machinesChannel = supabase.channel('machines_' + Date.now())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, async (p) => {
-      if (p.new?.device_id === getDeviceId()) return;
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'machines' }, async (p) => {
+    if (p.new?.device_id === getDeviceId()) {
+      console.log('🚫 Skipping own change');
+      return;
+    }
+    
+    if (machineUpdateTimeout) clearTimeout(machineUpdateTimeout);
+    machineUpdateTimeout = setTimeout(async () => {
+      console.log('🔄 Real-time: machines updated');
       if (onMachines) {
         const m = await loadMachinesFromCloud();
         if (m) onMachines(m);
       }
-    }).subscribe();
+    }, 2000);
+  }).subscribe();
   
   const constructsChannel = supabase.channel('constructs_' + Date.now())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'constructions' }, async (p) => {
-      if (p.new?.device_id === getDeviceId()) return;
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'constructions' }, async (p) => {
+    if (p.new?.device_id === getDeviceId()) {
+      console.log('🚫 Skipping own change');
+      return;
+    }
+    
+    if (constructUpdateTimeout) clearTimeout(constructUpdateTimeout);
+    constructUpdateTimeout = setTimeout(async () => {
+      console.log('🔄 Real-time: constructions updated');
       if (onConstructs) {
         const c = await loadConstructionsFromCloud();
         if (c) onConstructs(c);
       }
-    }).subscribe();
+    }, 2000);
+  }).subscribe();
   
   const historyChannel = supabase.channel('history_' + Date.now())
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'history' }, async (p) => {
-      if (p.new?.device_id === getDeviceId()) return;
+  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'history' }, async (p) => {
+    if (p.new?.device_id === getDeviceId()) {
+      console.log('🚫 Skipping own change');
+      return;
+    }
+    
+    if (historyUpdateTimeout) clearTimeout(historyUpdateTimeout);
+    historyUpdateTimeout = setTimeout(async () => {
+      console.log('🔄 Real-time: history updated');
       if (onHistory) {
         const h = await loadHistoryFromCloud();
         if (h) onHistory(h);
       }
-    }).subscribe();
+    }, 2000);
+  }).subscribe();
   
   realtimeChannels.push(machinesChannel, constructsChannel, historyChannel);
   console.log('✅ Real-time active');
