@@ -1,6 +1,15 @@
 // ============ EFFICIENCY PAGE LOGIC - FIXED ============
 // Menampilkan dan mengelola data efisiensi
 
+// ✅ FORCE INIT SUPABASE IMMEDIATELY
+   (async () => {
+     if (typeof supabaseInit !== 'undefined') {
+       console.log('🔧 Auto-initializing Supabase...')
+       const ready = await supabaseInit()
+       window.isCloudAvailable = ready
+       console.log('☁️ Cloud status:', ready ? '✅ Ready' : '❌ Offline')
+     }
+   })()
 const BLOCKS = {
   A: [{start: 1, end: 160}],
   B: [
