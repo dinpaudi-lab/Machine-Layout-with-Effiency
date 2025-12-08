@@ -959,7 +959,6 @@ async function initializeApp() {
   try {
     console.log('🚀 Initializing app...')
     
-    // Wait for Supabase to be available
     if (typeof supabaseInit !== 'undefined') {
       console.log('📡 Initializing Supabase...')
       const cloudReady = await supabaseInit()
@@ -968,7 +967,6 @@ async function initializeApp() {
       if (cloudReady) {
         console.log('✅ Cloud connected')
         
-        // Load from cloud
         if (typeof loadMachinesFromCloud !== 'undefined') {
           const cloudMachines = await loadMachinesFromCloud()
           if (cloudMachines && cloudMachines.length > 0) {
@@ -1006,40 +1004,10 @@ async function initializeApp() {
           }
         }
         
-        // Setup real-time listeners
-        if (typeof setupRealtimeListeners !== 'undefined') {
-          setupRealtimeListeners(
-            (newMachines) => {
-              console.log('🔄 Real-time: machines updated')
-              machines = newMachines
-              machines.sort((a, b) => a.id - b.id)
-              saveMachines()
-              renderGrid()
-              updateChart()
-              showToast('Mesin disinkronkan dari cloud', 'success')
-            },
-            (newConstructs) => {
-              console.log('🔄 Real-time: constructions updated')
-              constructions = newConstructs
-              saveConstructions()
-              renderLegend()
-              renderConstructList()
-              populateModalConstruct()
-              renderGrid()
-              updateChart()
-              showToast('Konstruksi disinkronkan dari cloud', 'success')
-            },
-            (newHistory) => {
-              console.log('🔄 Real-time: history updated')
-              window.cloudHistory = newHistory
-              renderHistory()
-              showToast('History disinkronkan dari cloud', 'success')
-            }
-          )
-          console.log('✅ Real-time listeners active')
-        }
+        // REAL-TIME DISABLED - Manual refresh only
+        console.log('ℹ️ Real-time sync disabled, use F5 to refresh')
         
-        showToast('✅ Connected to Cloud - Real-time Sync Active!', 'success')
+        showToast('✅ Connected to Cloud - Manual Sync Mode', 'success')
       } else {
         console.log('⚠️ Cloud unavailable, using local storage')
         showToast('Mode Offline - Data tersimpan lokal', 'warn')
@@ -1054,7 +1022,6 @@ async function initializeApp() {
     showToast('Mode Offline', 'warn')
   }
   
-// Render UI
   renderLegend()
   renderGrid()
   renderConstructList()
@@ -1065,7 +1032,6 @@ async function initializeApp() {
   updateClock()
   attachEventListeners()
   
-  // Setup efficiency modal listeners
   if (window.efficiencySystem && window.efficiencySystem.setupEfficiencyModalListeners) {
     window.efficiencySystem.setupEfficiencyModalListeners()
     console.log('✅ Efficiency modal listeners initialized')
@@ -1458,6 +1424,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
