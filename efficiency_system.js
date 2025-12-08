@@ -154,8 +154,15 @@ function getMachinesWithEfficiency(date) {
 
 // ============ BATCH IMPORT FROM EXCEL - MULTI SHEET SUPPORT ============
 async function importEfficiencyFromExcel(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
+     return new Promise(async (resolve, reject) => {
+       
+       // ✅ ENSURE CLOUD IS READY
+       if (!window.isCloudAvailable && typeof supabaseInit !== 'undefined') {
+         console.log('🔧 Cloud not ready, initializing...')
+         await supabaseInit()
+       }
+       
+       const reader = new FileReader()
     
     reader.onload = async (e) => {
       try {
