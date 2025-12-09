@@ -1,4 +1,4 @@
-// ============ EFFICIENCY MANAGEMENT SYSTEM - FIXED ============
+// ============ EFFICIENCY MANAGEMENT SYSTEM - FIXED CLOUD SYNC ============
 // Mengelola efisiensi mesin per shift (A, B, C)
 
 const EFFICIENCY_KEY = 'machine_efficiency_v2'
@@ -7,7 +7,7 @@ const EFFICIENCY_KEY = 'machine_efficiency_v2'
 const MACHINE_CONFIG = {
   TOTAL_MACHINES: 640,
   OPERATIONAL_START: 1,
-  OPERATIONAL_END: 600  // Mesin 1-600 adalah operasional
+  OPERATIONAL_END: 600
 }
 
 function isMachineOperational(machineId) {
@@ -15,10 +15,63 @@ function isMachineOperational(machineId) {
          machineId <= MACHINE_CONFIG.OPERATIONAL_END
 }
 
-// Data structure: { machineId: { date: { shiftA, shiftB, shiftC, global, editor, timestamp } } }
 let efficiencyData = {}
 
+// ============ CLOUD SYNC HELPERS ============
+
+// Ensure cloud is ready before operations
+async function ensureCloudReady() {
+  if (window.isCloudAvailable) return true
+  
+  if (typeof supabaseInit !== 'undefined') {
+    console.log('🔧 Initializing cloud...')
+    const ready = await supabaseInit()
+    window.isCloudAvailable = ready
+    return ready
+  }
+  
+  return false
+}
+
+// Force sync with retry
+async function forceSyncToCloud(data) {
+  const MAX_RETRIES = 3
+  let attempt = 0
+  
+  while (attempt < MAX_RETRIES) {
+    try {
+      attempt++
+      console.log(`☁️ Sync attempt ${attempt}/${MAX_RETRIES}...`)
+      
+      const cloudReady = await ensureCloudReady()
+      if (!cloudReady) {
+        console.warn('⚠️ Cloud not available')
+        return false
+      }
+      
+      if (typeof saveEfficiencyToCloud !== 'undefined') {
+        const success = await saveEfficiencyToCloud(data)
+        if (success) {
+          console.log('✅ Cloud sync successful')
+          return true
+        }
+      }
+      
+      // Wait before retry
+      if (attempt < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+      }
+    } catch (e) {
+      console.error(`❌ Sync attempt ${attempt} failed:`, e)
+    }
+  }
+  
+  console.error('❌ All sync attempts failed')
+  return false
+}
+
 // ============ LOAD & SAVE ============
+
 function loadEfficiencyData() {
   try {
     const raw = localStorage.getItem(EFFICIENCY_KEY)
@@ -34,27 +87,37 @@ function loadEfficiencyData() {
   return efficiencyData
 }
 
-function saveEfficiencyData() {
+async function saveEfficiencyData() {
   try {
+    // 1. Save to localStorage first (fast)
     localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
-    console.log('💾 Efficiency data saved locally')
+    console.log('💾 Efficiency saved to localStorage')
     
-    // ✅ SYNC KE CLOUD SETIAP SIMPAN
-    if (typeof saveEfficiencyToCloud !== 'undefined' && window.isCloudAvailable) {
-      console.log('☁️ Auto-syncing efficiency data to cloud...')
+    // 2. Then sync to cloud (slow, non-blocking)
+    const cloudReady = await ensureCloudReady()
+    
+    if (cloudReady && typeof saveEfficiencyToCloud !== 'undefined') {
+      console.log('☁️ Starting cloud sync...')
+      
+      // Non-blocking cloud sync
       saveEfficiencyToCloud(efficiencyData)
         .then(() => {
-          console.log('✅ Efficiency data synced to cloud')
+          console.log('✅ Efficiency synced to cloud')
+          if (typeof showToast !== 'undefined') {
+            showToast('☁️ Data tersinkron ke cloud', 'success')
+          }
         })
         .catch(e => {
-          console.warn('⚠️ Cloud efficiency sync failed:', e)
-          // Simpan sebagai pending sync
+          console.warn('⚠️ Cloud sync failed:', e)
+          // Save as pending for later sync
           localStorage.setItem('pending_efficiency_sync', JSON.stringify({
             data: efficiencyData,
             timestamp: new Date().toISOString(),
             device: getDeviceId()
           }))
         })
+    } else {
+      console.warn('⚠️ Cloud not available, data saved locally')
     }
   } catch (e) {
     console.error('❌ Error saving efficiency:', e)
@@ -63,13 +126,11 @@ function saveEfficiencyData() {
 
 // ============ EFFICIENCY OPERATIONS ============
 
-// Set efisiensi untuk mesin tertentu pada tanggal tertentu
 function setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, editor) {
   if (!efficiencyData[machineId]) {
     efficiencyData[machineId] = {}
   }
   
-  // Calculate global efficiency (average of all shifts)
   const shifts = [shiftA, shiftB, shiftC].filter(s => s !== null && s !== undefined && !isNaN(s) && s > 0)
   const global = shifts.length > 0 
     ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
@@ -84,6 +145,7 @@ function setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, editor) {
     editor: editor || getCurrentUserId()
   }
   
+  // Auto-save (non-blocking)
   saveEfficiencyData()
   
   console.log(`✏️ Set efficiency for machine ${machineId} on ${date}:`, efficiencyData[machineId][date])
@@ -91,24 +153,20 @@ function setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, editor) {
   return efficiencyData[machineId][date]
 }
 
-// Get efisiensi mesin untuk tanggal tertentu
 function getMachineEfficiency(machineId, date) {
   if (!efficiencyData[machineId]) return null
   return efficiencyData[machineId][date] || null
 }
 
-// Get efisiensi mesin untuk hari ini
 function getTodayEfficiency(machineId) {
   const today = new Date().toISOString().split('T')[0]
   return getMachineEfficiency(machineId, today)
 }
 
-// Get all efficiency data untuk mesin
 function getAllMachineEfficiency(machineId) {
   return efficiencyData[machineId] || {}
 }
 
-// Get efisiensi global untuk blok pada tanggal tertentu
 function getBlockEfficiency(blockName, date) {
   const targetDate = date || new Date().toISOString().split('T')[0]
   const blockMachines = getMachinesInBlock(blockName)
@@ -117,10 +175,8 @@ function getBlockEfficiency(blockName, date) {
   let operationalCount = 0
   
   blockMachines.forEach(machineId => {
-    // Hanya mesin operasional (1-600)
     if (isMachineOperational(machineId)) {
       const eff = getMachineEfficiency(machineId, targetDate)
-      // Tidak ada data = 0 (maintenance/mati)
       totalGlobal += (eff && eff.global) ? parseFloat(eff.global) : 0
       operationalCount++
     }
@@ -129,7 +185,6 @@ function getBlockEfficiency(blockName, date) {
   return operationalCount > 0 ? parseFloat((totalGlobal / operationalCount).toFixed(2)) : 0
 }
 
-// Get mesin dalam blok tertentu
 function getMachinesInBlock(blockName) {
   const machines = []
   const ranges = window.BLOCKS ? window.BLOCKS[blockName] : []
@@ -145,7 +200,6 @@ function getMachinesInBlock(blockName) {
   return machines
 }
 
-// Get all machines that have efficiency data for a specific date
 function getMachinesWithEfficiency(date) {
   const targetDate = date || new Date().toISOString().split('T')[0]
   const machinesWithData = []
@@ -163,166 +217,162 @@ function getMachinesWithEfficiency(date) {
   return machinesWithData
 }
 
-// ============ BATCH IMPORT FROM EXCEL - MULTI SHEET SUPPORT ============
+// ============ BATCH IMPORT FROM EXCEL ============
 async function importEfficiencyFromExcel(file) {
-     return new Promise(async (resolve, reject) => {
-       
-       // ✅ ENSURE CLOUD IS READY
-       if (!window.isCloudAvailable && typeof supabaseInit !== 'undefined') {
-         console.log('🔧 Cloud not ready, initializing...')
-         await supabaseInit()
-       }
-       
-       const reader = new FileReader()
-    
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target.result)
-        const workbook = XLSX.read(data, { type: 'array' })
-        
-        let imported = 0
-        let errors = []
-        let sheetsProcessed = 0
-        
-        console.log(`📊 Found ${workbook.SheetNames.length} sheets in Excel file`)
-        
-        // Loop through ALL sheets
-        workbook.SheetNames.forEach((sheetName, sheetIndex) => {
-          try {
-            console.log(`📄 Processing sheet: ${sheetName}`)
-            
-            const sheet = workbook.Sheets[sheetName]
-            const rows = XLSX.utils.sheet_to_json(sheet)
-            
-            if (rows.length === 0) {
-              console.warn(`⚠️ Sheet "${sheetName}" is empty, skipping`)
-              return
-            }
-            
-            // Try to extract date from sheet name (e.g., "2024-12-03" or "03-12-2024")
-            let sheetDate = null
-            const dateMatch = sheetName.match(/(\d{4}-\d{2}-\d{2})|(\d{2}-\d{2}-\d{4})/)
-            if (dateMatch) {
-              sheetDate = dateMatch[0]
-              // Normalize to YYYY-MM-DD format
-              if (sheetDate.match(/^\d{2}-\d{2}-\d{4}$/)) {
-                const parts = sheetDate.split('-')
-                sheetDate = `${parts[2]}-${parts[1]}-${parts[0]}`
-              }
-              console.log(`📅 Sheet date detected: ${sheetDate}`)
-            }
-            
-            rows.forEach((row, rowIndex) => {
-              try {
-                const machineId = parseInt(row['Machine ID'] || row['Mesin'] || row['ID'] || row['Machine'] || row['No Mesin'])
-                
-                // Date priority: 1. Column, 2. Sheet name, 3. Error
-                let date = row['Date'] || row['Tanggal'] || sheetDate
-                
-                let shiftA = parseFloat(row['Shift A'] || row['A'] || row['shift_a'] || 0)
-                let shiftB = parseFloat(row['Shift B'] || row['B'] || row['shift_b'] || 0)
-                let shiftC = parseFloat(row['Shift C'] || row['C'] || row['shift_c'] || 0)
-                
-                if (!machineId) {
-                  errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: Missing Machine ID`)
-                  return
-                }
-                
-                if (!date) {
-                  errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: Missing Date (not in column or sheet name)`)
-                  return
-                }
-                
-                // PENTING: Auto-convert dari format persen Excel (0.84 → 84)
-                // Ini otomatis detect apakah nilai sudah persen (>1) atau decimal (<1)
-                if (shiftA > 0 && shiftA <= 1) shiftA = shiftA * 100
-                if (shiftB > 0 && shiftB <= 1) shiftB = shiftB * 100
-                if (shiftC > 0 && shiftC <= 1) shiftC = shiftC * 100
-                
-                // Round to 2 decimal
-                shiftA = parseFloat(shiftA.toFixed(2))
-                shiftB = parseFloat(shiftB.toFixed(2))
-                shiftC = parseFloat(shiftC.toFixed(2))
-                
-                // Convert date to ISO format
-                if (date instanceof Date) {
-                  date = date.toISOString().split('T')[0]
-                } else if (typeof date === 'string') {
-                  // Handle various date formats
-                  if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                    // Already in YYYY-MM-DD format
-                  } else if (date.match(/^\d{2}[-/]\d{2}[-/]\d{4}$/)) {
-                    // DD-MM-YYYY or DD/MM/YYYY
-                    const parts = date.split(/[-/]/)
-                    date = `${parts[2]}-${parts[1]}-${parts[0]}`
-                  } else {
-                    date = new Date(date).toISOString().split('T')[0]
-                  }
-                } else if (typeof date === 'number') {
-                  // Excel date serial number
-                  const excelDate = new Date((date - 25569) * 86400 * 1000)
-                  date = excelDate.toISOString().split('T')[0]
-                }
-                
-                setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, `Excel Import (${sheetName})`)
-                imported++
-              } catch (err) {
-                errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: ${err.message}`)
-              }
-            })
-            
-            sheetsProcessed++
-          } catch (sheetErr) {
-            errors.push(`Sheet "${sheetName}": ${sheetErr.message}`)
-          }
-        })
-        
-        console.log(`✅ Imported ${imported} efficiency records from ${sheetsProcessed} sheets`)
-        if (errors.length > 0) {
-          console.warn('⚠️ Import errors:', errors)
-        }
-        
-        // ✅ AUTO-SYNC KE CLOUD SETELAH IMPORT
-if (typeof saveEfficiencyToCloud !== 'undefined' && window.isCloudAvailable) {
-  console.log('☁️ Syncing imported efficiency data to cloud...')
-  try {
-    await saveEfficiencyToCloud(efficiencyData)
-    console.log('✅✅✅ Imported data synced to cloud!')
-    
-    // Beri tahu user
-    if (typeof showToast !== 'undefined') {
-      showToast(`✅ ${imported} data efisiensi diimpor & tersinkron ke cloud`, 'success')
-    }
-  } catch (syncErr) {
-    console.error('❌ Cloud sync failed:', syncErr)
-    // Simpan sebagai pending
-    localStorage.setItem('pending_efficiency_sync', JSON.stringify({
-      data: efficiencyData,
-      timestamp: new Date().toISOString(),
-      source: 'excel_import',
-      device: getDeviceId()
-    }))
-    
-    if (typeof showToast !== 'undefined') {
-      showToast('⚠️ Data disimpan lokal (cloud offline)', 'warn')
-    }
-  }
-} else {
-  console.warn('⚠️ Cloud not available')
-  if (typeof showToast !== 'undefined') {
-    showToast('⚠️ Data disimpan lokal saja', 'warn')
-  }
-}
-        
-        resolve({ imported, errors, sheetsProcessed })
-      } catch (error) {
-        console.error('❌ Excel import error:', error)
-        reject(error)
+  return new Promise(async (resolve, reject) => {
+    try {
+      console.log('📂 Starting Excel import...')
+      
+      // ✅ STEP 1: ENSURE CLOUD IS READY FIRST
+      console.log('🔧 Ensuring cloud is ready...')
+      const cloudReady = await ensureCloudReady()
+      
+      if (cloudReady) {
+        console.log('✅ Cloud is ready')
+      } else {
+        console.warn('⚠️ Cloud not ready, will save locally only')
       }
+      
+      // ✅ STEP 2: PROCESS EXCEL FILE
+      const reader = new FileReader()
+      
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result)
+          const workbook = XLSX.read(data, { type: 'array' })
+          
+          let imported = 0
+          let errors = []
+          let sheetsProcessed = 0
+          
+          console.log(`📊 Found ${workbook.SheetNames.length} sheets`)
+          
+          // Process all sheets
+          workbook.SheetNames.forEach((sheetName) => {
+            try {
+              console.log(`📄 Processing sheet: ${sheetName}`)
+              
+              const sheet = workbook.Sheets[sheetName]
+              const rows = XLSX.utils.sheet_to_json(sheet)
+              
+              if (rows.length === 0) {
+                console.warn(`⚠️ Sheet "${sheetName}" is empty`)
+                return
+              }
+              
+              // Extract date from sheet name
+              let sheetDate = null
+              const dateMatch = sheetName.match(/(\d{4}-\d{2}-\d{2})|(\d{2}-\d{2}-\d{4})/)
+              if (dateMatch) {
+                sheetDate = dateMatch[0]
+                if (sheetDate.match(/^\d{2}-\d{2}-\d{4}$/)) {
+                  const parts = sheetDate.split('-')
+                  sheetDate = `${parts[2]}-${parts[1]}-${parts[0]}`
+                }
+                console.log(`📅 Sheet date: ${sheetDate}`)
+              }
+              
+              rows.forEach((row, rowIndex) => {
+                try {
+                  const machineId = parseInt(row['Machine ID'] || row['Mesin'] || row['ID'] || row['Machine'] || row['No Mesin'])
+                  let date = row['Date'] || row['Tanggal'] || sheetDate
+                  
+                  let shiftA = parseFloat(row['Shift A'] || row['A'] || row['shift_a'] || 0)
+                  let shiftB = parseFloat(row['Shift B'] || row['B'] || row['shift_b'] || 0)
+                  let shiftC = parseFloat(row['Shift C'] || row['C'] || row['shift_c'] || 0)
+                  
+                  if (!machineId) {
+                    errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: Missing Machine ID`)
+                    return
+                  }
+                  
+                  if (!date) {
+                    errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: Missing Date`)
+                    return
+                  }
+                  
+                  // Auto-convert percentage (0.84 → 84)
+                  if (shiftA > 0 && shiftA <= 1) shiftA = shiftA * 100
+                  if (shiftB > 0 && shiftB <= 1) shiftB = shiftB * 100
+                  if (shiftC > 0 && shiftC <= 1) shiftC = shiftC * 100
+                  
+                  shiftA = parseFloat(shiftA.toFixed(2))
+                  shiftB = parseFloat(shiftB.toFixed(2))
+                  shiftC = parseFloat(shiftC.toFixed(2))
+                  
+                  // Normalize date
+                  if (date instanceof Date) {
+                    date = date.toISOString().split('T')[0]
+                  } else if (typeof date === 'string') {
+                    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                      // Already YYYY-MM-DD
+                    } else if (date.match(/^\d{2}[-/]\d{2}[-/]\d{4}$/)) {
+                      const parts = date.split(/[-/]/)
+                      date = `${parts[2]}-${parts[1]}-${parts[0]}`
+                    } else {
+                      date = new Date(date).toISOString().split('T')[0]
+                    }
+                  } else if (typeof date === 'number') {
+                    const excelDate = new Date((date - 25569) * 86400 * 1000)
+                    date = excelDate.toISOString().split('T')[0]
+                  }
+                  
+                  setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, `Excel Import (${sheetName})`)
+                  imported++
+                } catch (err) {
+                  errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: ${err.message}`)
+                }
+              })
+              
+              sheetsProcessed++
+            } catch (sheetErr) {
+              errors.push(`Sheet "${sheetName}": ${sheetErr.message}`)
+            }
+          })
+          
+          console.log(`✅ Imported ${imported} records from ${sheetsProcessed} sheets`)
+          
+          if (errors.length > 0) {
+            console.warn('⚠️ Import errors:', errors)
+          }
+          
+          // ✅ STEP 3: FORCE SYNC TO CLOUD
+          if (cloudReady) {
+            console.log('☁️ Force syncing to cloud...')
+            
+            const syncSuccess = await forceSyncToCloud(efficiencyData)
+            
+            if (syncSuccess) {
+              console.log('✅✅✅ Data synced to cloud successfully!')
+              if (typeof showToast !== 'undefined') {
+                showToast(`✅ ${imported} data imported & synced to cloud`, 'success')
+              }
+            } else {
+              console.error('❌ Cloud sync failed after import')
+              if (typeof showToast !== 'undefined') {
+                showToast('⚠️ Imported but cloud sync failed', 'warn')
+              }
+            }
+          } else {
+            console.warn('⚠️ Cloud not available')
+            if (typeof showToast !== 'undefined') {
+              showToast('⚠️ Data imported locally only', 'warn')
+            }
+          }
+          
+          resolve({ imported, errors, sheetsProcessed })
+        } catch (error) {
+          console.error('❌ Excel import error:', error)
+          reject(error)
+        }
+      }
+      
+      reader.onerror = () => reject(reader.error)
+      reader.readAsArrayBuffer(file)
+    } catch (error) {
+      console.error('❌ Import initialization error:', error)
+      reject(error)
     }
-    
-    reader.onerror = () => reject(reader.error)
-    reader.readAsArrayBuffer(file)
   })
 }
 
@@ -337,7 +387,6 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
   const now = new Date()
   const filename = `efficiency_export_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}.xlsx`
   
-  // Prepare data
   const exportData = []
   
   Object.keys(efficiencyData).forEach(machineId => {
@@ -346,7 +395,6 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
     Object.keys(machineEfficiency).forEach(date => {
       const eff = machineEfficiency[date]
       
-      // Filter by date range if provided
       if (dateFrom && date < dateFrom) return
       if (dateTo && date > dateTo) return
       
@@ -363,7 +411,6 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
     })
   })
   
-  // Sort by date and machine ID
   exportData.sort((a, b) => {
     if (a.Date !== b.Date) return a.Date.localeCompare(b.Date)
     return parseInt(a['Machine ID']) - parseInt(b['Machine ID'])
@@ -374,7 +421,6 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
     return false
   }
   
-  // Use ExcelJS if available
   if (window.ExcelJS) {
     try {
       const wb = new ExcelJS.Workbook()
@@ -418,7 +464,6 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
     }
   }
   
-  // Fallback to SheetJS
   if (typeof XLSX !== 'undefined') {
     const ws = XLSX.utils.json_to_sheet(exportData)
     const wb = XLSX.utils.book_new()
@@ -433,7 +478,6 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
 
 // ============ UI COMPONENTS ============
 
-// Open efficiency modal for a machine
 function openEfficiencyModal(machineId) {
   const modal = document.getElementById('efficiency-modal')
   if (!modal) {
@@ -455,7 +499,6 @@ function openEfficiencyModal(machineId) {
   
   modal.classList.remove('hidden')
   
-  // Auto-calculate global on input
   const inputs = [
     document.getElementById('eff-shift-a'),
     document.getElementById('eff-shift-b'),
@@ -518,12 +561,10 @@ async function saveEfficiencyFromModal() {
   }
 }
 
-// Add efficiency indicator to machine box
 function addEfficiencyIndicator(machineBox, machineId) {
   const eff = getTodayEfficiency(machineId)
   
   if (eff && eff.global > 0) {
-    // Remove old indicator if exists
     const oldIndicator = machineBox.querySelector('.efficiency-indicator')
     if (oldIndicator) oldIndicator.remove()
     
@@ -546,38 +587,31 @@ function addEfficiencyIndicator(machineBox, machineId) {
   }
 }
 
-// Setup efficiency modal event listeners (call once on page load)
 function setupEfficiencyModalListeners() {
   console.log('🔧 Setting up efficiency modal listeners...')
   
   const saveBtn = document.getElementById('save-efficiency')
   const closeBtn = document.getElementById('close-efficiency-modal')
   
-  // Only proceed if buttons exist (they exist in layout.html, not efficiency.html)
   if (!saveBtn && !closeBtn) {
-    console.log('ℹ️ Efficiency modal buttons not found (probably on efficiency.html page)')
+    console.log('ℹ️ Efficiency modal buttons not found')
     return
   }
   
   if (saveBtn) {
-    // Remove any existing listeners by cloning
     const newSaveBtn = saveBtn.cloneNode(true)
     saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn)
-    
     newSaveBtn.addEventListener('click', saveEfficiencyFromModal)
     console.log('✅ Save button listener attached')
   }
   
   if (closeBtn) {
-    // Remove any existing listeners by cloning
     const newCloseBtn = closeBtn.cloneNode(true)
     closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn)
-    
     newCloseBtn.addEventListener('click', closeEfficiencyModal)
     console.log('✅ Close button listener attached')
   }
   
-  // Also setup modal backdrop click to close
   const modal = document.getElementById('efficiency-modal')
   if (modal) {
     modal.addEventListener('click', (e) => {
@@ -642,9 +676,11 @@ window.efficiencySystem = {
   loadEfficiencyData,
   saveEfficiencyData,
   setupEfficiencyModalListeners,
+  ensureCloudReady,
+  forceSyncToCloud,
   efficiencyData,
   isMachineOperational,
   MACHINE_CONFIG
 }
 
-console.log('✅ Efficiency system loaded - Fixed version')
+console.log('✅ Efficiency system loaded - Cloud sync fixed')
