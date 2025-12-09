@@ -1,38 +1,35 @@
-// ============ EFFICIENCY PAGE LOGIC - REAL-TIME SYNC FIXED ============
-// Menampilkan dan mengelola data efisiensi dengan auto-refresh
+// ============ EFFICIENCY PAGE LOGIC - FIXED RATE LIMIT ============
+// Menampilkan dan mengelola data efisiensi dengan throttled sync
 
-// ✅ STEP 1: FORCE INIT SUPABASE & SETUP REAL-TIME
-(async () => {
-  if (typeof supabaseInit !== 'undefined') {
-    console.log('🔧 Auto-initializing Supabase...')
-    const ready = await supabaseInit()
-    window.isCloudAvailable = ready
-    console.log('☁️ Cloud status:', ready ? '✅ Ready' : '❌ Offline')
-    
-    if (ready) {
-      // ✅ LOAD INITIAL DATA
-      console.log('📥 Loading initial data from cloud...')
-      await loadAllEfficiencyData()
-      
-      // ✅ SETUP REAL-TIME LISTENERS
-      console.log('🔄 Setting up real-time listeners...')
-      setupEfficiencyRealtime()
-    }
-  }
-})()
+let isLoading = false
+let lastLoadTime = 0
+const LOAD_COOLDOWN = 5000 // 5 seconds between loads
 
-// ✅ FUNCTION: Load all efficiency data from cloud
+// ✅ THROTTLED LOAD - Prevent spam requests
 async function loadAllEfficiencyData() {
+  const now = Date.now()
+  
+  // Prevent loading too frequently
+  if (isLoading || (now - lastLoadTime < LOAD_COOLDOWN)) {
+    console.log('⏳ Load cooldown, skipping...')
+    return false
+  }
+  
+  isLoading = true
+  lastLoadTime = now
+  
   try {
+    console.log('📥 Loading data from cloud...')
+    
     // Load machine efficiency
     if (typeof loadEfficiencyFromCloud !== 'undefined') {
       const cloudData = await loadEfficiencyFromCloud()
       if (cloudData && Object.keys(cloudData).length > 0) {
-        console.log('✅ Loaded efficiency from cloud:', Object.keys(cloudData).length, 'machines')
+        console.log('✅ Loaded efficiency:', Object.keys(cloudData).length, 'machines')
         
         if (window.efficiencySystem) {
           window.efficiencySystem.efficiencyData = cloudData
-          window.efficiencySystem.saveEfficiencyData()
+          localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
         }
       }
     }
@@ -41,68 +38,97 @@ async function loadAllEfficiencyData() {
     if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
       const globalData = await loadGlobalEfficiencyFromCloud()
       if (globalData && Object.keys(globalData).length > 0) {
-        console.log('✅ Loaded global from cloud:', Object.keys(globalData).length, 'dates')
+        console.log('✅ Loaded global:', Object.keys(globalData).length, 'dates')
         
         if (window.globalEfficiencySystem) {
           window.globalEfficiencySystem.globalEfficiencyData = globalData
-          window.globalEfficiencySystem.saveGlobalEfficiency()
+          localStorage.setItem('global_efficiency_v1', JSON.stringify(globalData))
         }
       }
     }
     
-    // Update UI immediately
+    // Update UI
     renderEfficiencyGrid()
     updateBlockSummary()
     updateTrendChart()
     updateBlockChart()
+    
+    return true
   } catch (e) {
-    console.error('❌ Failed to load data:', e)
+    console.error('❌ Load error:', e.message)
+    return false
+  } finally {
+    isLoading = false
   }
 }
 
-// ✅ FUNCTION: Setup real-time sync
+// ✅ INIT - Load only ONCE on startup
+(async () => {
+  if (typeof supabaseInit !== 'undefined') {
+    console.log('🔧 Initializing Supabase...')
+    const ready = await supabaseInit()
+    window.isCloudAvailable = ready
+    console.log('☁️ Cloud status:', ready ? '✅' : '❌')
+    
+    if (ready) {
+      // Load ONCE on startup
+      await loadAllEfficiencyData()
+      
+      // Setup real-time (passive listener only)
+      setupEfficiencyRealtime()
+    }
+  }
+})()
+
+// ✅ REAL-TIME - Passive listener with debounce
+let updateTimeout = null
+
 function setupEfficiencyRealtime() {
   if (!window.isCloudAvailable || typeof setupEfficiencyRealtimeListener === 'undefined') {
     console.warn('⚠️ Real-time not available')
     return
   }
   
-  console.log('🔄 Activating real-time sync...')
+  console.log('🔄 Activating real-time...')
   
   setupEfficiencyRealtimeListener(
-    // On machine efficiency update
+    // On machine efficiency update - DEBOUNCED
     (newEffData) => {
-      console.log('📡 Real-time: Machine efficiency updated from another device')
-      
-      if (window.efficiencySystem) {
-        window.efficiencySystem.efficiencyData = newEffData
-        window.efficiencySystem.saveEfficiencyData()
+      clearTimeout(updateTimeout)
+      updateTimeout = setTimeout(() => {
+        console.log('📡 Real-time: Efficiency updated')
         
-        // Update UI
-        renderEfficiencyGrid()
-        updateBlockSummary()
-        updateBlockChart()
-        
-        showToast('🔄 Data efisiensi diperbarui dari device lain', 'success')
-      }
+        if (window.efficiencySystem) {
+          window.efficiencySystem.efficiencyData = newEffData
+          localStorage.setItem('machine_efficiency_v2', JSON.stringify(newEffData))
+          
+          renderEfficiencyGrid()
+          updateBlockSummary()
+          updateBlockChart()
+          
+          showToast('🔄 Data diperbarui', 'success')
+        }
+      }, 2000) // Wait 2s before updating
     },
-    // On global efficiency update
+    // On global efficiency update - DEBOUNCED
     (newGlobalData) => {
-      console.log('📡 Real-time: Global efficiency updated from another device')
-      
-      if (window.globalEfficiencySystem) {
-        window.globalEfficiencySystem.globalEfficiencyData = newGlobalData
-        window.globalEfficiencySystem.saveGlobalEfficiency()
+      clearTimeout(updateTimeout)
+      updateTimeout = setTimeout(() => {
+        console.log('📡 Real-time: Global updated')
         
-        // Update UI
-        updateTrendChart()
-        
-        showToast('🔄 Data global diperbarui dari device lain', 'success')
-      }
+        if (window.globalEfficiencySystem) {
+          window.globalEfficiencySystem.globalEfficiencyData = newGlobalData
+          localStorage.setItem('global_efficiency_v1', JSON.stringify(newGlobalData))
+          
+          updateTrendChart()
+          
+          showToast('🔄 Global diperbarui', 'success')
+        }
+      }, 2000)
     }
   )
   
-  console.log('✅ Real-time sync active')
+  console.log('✅ Real-time active')
 }
 
 // ============ BLOCKS DEFINITION ============
@@ -146,15 +172,11 @@ function renderEfficiencyGrid() {
   const blockFilter = document.getElementById('block-filter')
   const sortFilter = document.getElementById('sort-filter')
   
-  if (!grid) {
-    console.error('efficiency-grid element not found')
-    return
-  }
+  if (!grid) return
   
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
   if (!window.efficiencySystem) {
-    console.error('Efficiency system not loaded')
     grid.innerHTML = '<div class="no-data">❌ Efficiency system not loaded</div>'
     return
   }
@@ -239,18 +261,13 @@ function renderEfficiencyGrid() {
     
     grid.appendChild(card)
   })
-  
-  console.log('✅ Rendered', machinesWithData.length, 'machines')
 }
 
 function updateBlockSummary() {
   const dateFilter = document.getElementById('date-filter')
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
-  if (!window.efficiencySystem) {
-    console.error('Efficiency system not loaded')
-    return
-  }
+  if (!window.efficiencySystem) return
   
   const blockA = window.efficiencySystem.getBlockEfficiency('A', date)
   const blockB = window.efficiencySystem.getBlockEfficiency('B', date)
@@ -274,15 +291,11 @@ function updateTrendChart() {
   
   const ctx = canvas.getContext('2d')
   
-  if (!window.globalEfficiencySystem) {
-    console.error('Global efficiency system not loaded')
-    return
-  }
+  if (!window.globalEfficiencySystem) return
   
   const dateLabels = []
   const globalEfficiency = []
 
-  // Get last 30 days
   for (let i = 29; i >= 0; i--) {
     const date = new Date()
     date.setDate(date.getDate() - i)
@@ -326,71 +339,33 @@ function updateTrendChart() {
       plugins: {
         legend: {
           display: true,
-          labels: { 
-            color: '#cbd5e1',
-            font: { size: 13 }
-          }
+          labels: { color: '#cbd5e1', font: { size: 13 } }
         },
         datalabels: typeof ChartDataLabels !== 'undefined' ? {
-          display: function(context) {
-            return context.dataset.data[context.dataIndex] > 0
-          },
+          display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
           color: '#ffd166',
-          font: {
-            weight: 'bold',
-            size: 11
-          },
-          formatter: function(value) {
-            return value > 0 ? value + '%' : ''
-          },
+          font: { weight: 'bold', size: 11 },
+          formatter: (val) => val > 0 ? val + '%' : '',
           anchor: 'end',
           align: 'top',
           offset: 6,
           rotation: -45
-        } : false,
-        tooltip: {
-          callbacks: {
-            title: function(context) {
-              const index = context[0].dataIndex
-              const date = new Date()
-              date.setDate(date.getDate() - (29 - index))
-              return date.toLocaleDateString('id-ID', { 
-                weekday: 'long',
-                day: 'numeric', 
-                month: 'long',
-                year: 'numeric'
-              })
-            }
-          }
-        }
+        } : false
       },
       scales: {
         x: {
-          ticks: { 
-            color: '#cbd5e1',
-            maxRotation: 45,
-            minRotation: 45,
-            font: { size: 10 }
-          },
-          grid: { 
-            color: 'rgba(255, 255, 255, 0.05)',
-            drawBorder: false
-          }
+          ticks: { color: '#cbd5e1', maxRotation: 45, minRotation: 45, font: { size: 10 } },
+          grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false }
         },
         y: {
           beginAtZero: true,
           max: 100,
           ticks: { 
-            color: '#cbd5e1',
+            color: '#cbd5e1', 
             font: { size: 11 },
-            callback: function(value) {
-              return value + '%'
-            }
+            callback: (val) => val + '%'
           },
-          grid: { 
-            color: 'rgba(255, 255, 255, 0.05)',
-            drawBorder: false
-          }
+          grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false }
         }
       }
     }
@@ -405,10 +380,7 @@ function updateBlockChart() {
   const dateFilter = document.getElementById('date-filter')
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
-  if (!window.efficiencySystem) {
-    console.error('Efficiency system not loaded')
-    return
-  }
+  if (!window.efficiencySystem) return
   
   const blockEfficiency = {
     'Blok A': window.efficiencySystem.getBlockEfficiency('A', date),
@@ -443,29 +415,16 @@ function updateBlockChart() {
         datalabels: typeof ChartDataLabels !== 'undefined' ? {
           display: true,
           color: '#fff',
-          font: {
-            weight: 'bold',
-            size: 14
-          },
-          formatter: function(value) {
-            return value > 0 ? value + '%' : '0%'
-          },
+          font: { weight: 'bold', size: 14 },
+          formatter: (val) => val > 0 ? val + '%' : '0%',
           anchor: 'end',
           align: 'top',
           offset: 2
         } : false
       },
       scales: {
-        x: {
-          ticks: { color: '#cbd5e1' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' }
-        },
-        y: {
-          beginAtZero: true,
-          max: 100,
-          ticks: { color: '#cbd5e1' },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' }
-        }
+        x: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
+        y: { beginAtZero: true, max: 100, ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
       }
     }
   })
@@ -574,16 +533,14 @@ function attachEventListeners() {
     machineFileInput.addEventListener('change', async (e) => {
       if (e.target.files[0]) {
         try {
-          if (!window.efficiencySystem) {
-            throw new Error('Efficiency system not loaded')
-          }
+          if (!window.efficiencySystem) throw new Error('Efficiency system not loaded')
           
           const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
           showToast(`✅ Imported ${result.imported} records`, 'success')
           
           if (result.errors.length > 0) {
             console.warn('Import errors:', result.errors)
-            showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
+            showToast(`⚠️ ${result.errors.length} errors`, 'warn')
           }
           
           renderEfficiencyGrid()
@@ -594,7 +551,7 @@ function attachEventListeners() {
           e.target.value = ''
         } catch (error) {
           console.error('Import error:', error)
-          showToast('❌ Import failed: ' + error.message, 'warn')
+          showToast('❌ Import failed', 'warn')
         }
       }
     })
@@ -605,24 +562,20 @@ function attachEventListeners() {
     globalFileInput.addEventListener('change', async (e) => {
       if (e.target.files[0]) {
         try {
-          if (!window.globalEfficiencySystem) {
-            throw new Error('Global efficiency system not loaded')
-          }
+          if (!window.globalEfficiencySystem) throw new Error('Global system not loaded')
           
           const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
           showToast(`✅ Imported ${result.imported} global records`, 'success')
           
           if (result.errors.length > 0) {
-            console.warn('Import errors:', result.errors)
-            showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
+            showToast(`⚠️ ${result.errors.length} errors`, 'warn')
           }
           
           updateTrendChart()
-          
           e.target.value = ''
         } catch (error) {
           console.error('Import error:', error)
-          showToast('❌ Import failed: ' + error.message, 'warn')
+          showToast('❌ Import failed', 'warn')
         }
       }
     })
@@ -639,31 +592,33 @@ function attachEventListeners() {
           showToast('❌ Export gagal', 'warn')
         }
       } catch (error) {
-        console.error('Export error:', error)
         showToast('❌ Export failed', 'warn')
       }
     })
   }
    
-  // Manual sync button - RELOAD FROM CLOUD
+  // Manual sync with cooldown
   const manualSyncBtn = document.getElementById('manual-sync-btn')
   if (manualSyncBtn) {
     manualSyncBtn.addEventListener('click', async () => {
+      if (isLoading) {
+        showToast('⏳ Masih loading, tunggu sebentar', 'warn')
+        return
+      }
+      
       manualSyncBtn.disabled = true
       manualSyncBtn.innerHTML = '🔄 Loading...'
       
-      console.log('🔄 Manual sync started...')
+      const success = await loadAllEfficiencyData()
       
-      try {
-        await loadAllEfficiencyData()
-        showToast('✅ Data berhasil di-refresh dari cloud', 'success')
-      } catch (e) {
-        console.error('Sync error:', e)
-        showToast('❌ Gagal sync: ' + e.message, 'warn')
-      } finally {
-        manualSyncBtn.disabled = false
-        manualSyncBtn.innerHTML = '🔄 Sync Data'
+      if (success) {
+        showToast('✅ Data berhasil di-refresh', 'success')
+      } else {
+        showToast('❌ Gagal sync', 'warn')
       }
+      
+      manualSyncBtn.disabled = false
+      manualSyncBtn.innerHTML = '🔄 Sync Data'
     })
   }
 }
@@ -673,14 +628,12 @@ function attachEventListeners() {
 async function initialize() {
   console.log('🚀 Initializing efficiency page...')
   
-  // Wait for systems to be ready
   let attempts = 0
   while (attempts < 10) {
     if (window.efficiencySystem && window.globalEfficiencySystem) {
       console.log('✅ Systems ready')
       break
     }
-    console.log(`⏳ Waiting for systems... (${attempts + 1}/10)`)
     await new Promise(resolve => setTimeout(resolve, 500))
     attempts++
   }
@@ -689,7 +642,7 @@ async function initialize() {
     console.error('❌ Efficiency system not loaded')
     const grid = document.getElementById('efficiency-grid')
     if (grid) {
-      grid.innerHTML = '<div class="no-data">❌ Efficiency system not loaded. Please check console.</div>'
+      grid.innerHTML = '<div class="no-data">❌ System not loaded</div>'
     }
     return
   }
@@ -712,45 +665,7 @@ if (document.readyState === 'loading') {
 
 setInterval(updateClock, 1000)
 
-// ✅ AUTO-REFRESH: Check for updates every 10 seconds
-setInterval(async () => {
-  if (window.isCloudAvailable) {
-    console.log('🔄 Background refresh check...')
-    
-    // Check if data has changed on server
-    if (typeof loadEfficiencyFromCloud !== 'undefined') {
-      const cloudData = await loadEfficiencyFromCloud()
-      if (cloudData && window.efficiencySystem) {
-        const localKeys = Object.keys(window.efficiencySystem.efficiencyData).length
-        const cloudKeys = Object.keys(cloudData).length
-        
-        if (cloudKeys !== localKeys) {
-          console.log('📡 Data changed, updating UI...')
-          window.efficiencySystem.efficiencyData = cloudData
-          window.efficiencySystem.saveEfficiencyData()
-          renderEfficiencyGrid()
-          updateBlockSummary()
-          updateBlockChart()
-        }
-      }
-    }
-    
-    if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
-      const globalData = await loadGlobalEfficiencyFromCloud()
-      if (globalData && window.globalEfficiencySystem) {
-        const localKeys = Object.keys(window.globalEfficiencySystem.globalEfficiencyData).length
-        const cloudKeys = Object.keys(globalData).length
-        
-        if (cloudKeys !== localKeys) {
-          console.log('📡 Global data changed, updating chart...')
-          window.globalEfficiencySystem.globalEfficiencyData = globalData
-          window.globalEfficiencySystem.saveGlobalEfficiency()
-          updateTrendChart()
-        }
-      }
-    }
-  }
-}, 10000) // Every 10 seconds
+// ❌ REMOVED AUTO-REFRESH - Cause rate limit
 
 window.efficiencyPage = {
   renderEfficiencyGrid,
@@ -760,4 +675,4 @@ window.efficiencyPage = {
   loadAllEfficiencyData
 }
 
-console.log('✅ Efficiency page loaded with REAL-TIME sync')
+console.log('✅ Efficiency page loaded (rate limit fixed)')
