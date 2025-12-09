@@ -433,6 +433,11 @@ function setupEfficiencyRealtime() {
   
   setupEfficiencyRealtimeListener(
     (newEffData) => {
+      // CEK: Kalau lampu merah, STOP!
+    if (window.importInProgress) {
+      console.log('⏸️ Lagi import, skip update')
+      return  // KELUAR, gak usah lanjut
+    }
       clearTimeout(updateTimeout)
       updateTimeout = setTimeout(() => {
         console.log('📡 Efficiency updated')
@@ -450,6 +455,11 @@ function setupEfficiencyRealtime() {
       }, 2000)
     },
     (newGlobalData) => {
+      // CEK: Kalau lampu merah, STOP!
+    if (window.importInProgress) {
+      console.log('⏸️ Lagi import, skip update')
+      return
+    }
       clearTimeout(updateTimeout)
       updateTimeout = setTimeout(() => {
         console.log('📡 Global updated')
@@ -504,48 +514,82 @@ function attachEventListeners() {
   }
 
   const machineFileInput = document.getElementById('efficiency-machine-file-input')
-  if (machineFileInput) {
-    machineFileInput.addEventListener('change', async (e) => {
-      if (e.target.files[0]) {
-        try {
-          if (!window.efficiencySystem) throw new Error('System not loaded')
-          
-          const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
-          showToast(`✅ Imported ${result.imported} records`, 'success')
-          
-          renderEfficiencyGrid()
-          updateBlockSummary()
-          updateTrendChart()
-          updateBlockChart()
-          
-          e.target.value = ''
-        } catch (error) {
-          console.error('Import error:', error)
-          showToast('❌ Import failed', 'warn')
-        }
+if (machineFileInput) {
+  machineFileInput.addEventListener('change', async (e) => {
+    if (e.target.files[0]) {
+      try {
+        if (!window.efficiencySystem) throw new Error('System not loaded')
+        
+        // 🚫 STEP 1: Kasih tanda "lagi import, jangan render dulu"
+        window.importInProgress = true
+        
+        // 🔄 STEP 2: Kasih loading message
+        showToast('📥 Importing machine data...', 'success')
+        
+        // 📂 STEP 3: Import file (proses berat di sini)
+        const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
+        
+        // ✅ STEP 4: Import selesai, boleh render lagi
+        window.importInProgress = false
+        
+        // 🎉 STEP 5: Kasih tau user sukses
+        showToast(`✅ ${result.imported} machine records imported!`, 'success')
+        
+        // 🎨 STEP 6: RENDER UI SEKALI (bukan 1000x)
+        renderEfficiencyGrid()
+        updateBlockSummary()
+        updateTrendChart()
+        updateBlockChart()
+        
+        // 🧹 STEP 7: Reset file input
+        e.target.value = ''
+        
+      } catch (error) {
+        // ❌ Kalau error, matikan flag import juga
+        window.importInProgress = false
+        console.error('Import error:', error)
+        showToast('❌ Import failed: ' + error.message, 'warn')
       }
-    })
-  }
+    }
+  })
+}
 
   const globalFileInput = document.getElementById('efficiency-global-file-input')
-  if (globalFileInput) {
-    globalFileInput.addEventListener('change', async (e) => {
-      if (e.target.files[0]) {
-        try {
-          if (!window.globalEfficiencySystem) throw new Error('Global system not loaded')
-          
-          const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
-          showToast(`✅ Imported ${result.imported} global`, 'success')
-          
-          updateTrendChart()
-          e.target.value = ''
-        } catch (error) {
-          console.error('Import error:', error)
-          showToast('❌ Import failed', 'warn')
-        }
+if (globalFileInput) {
+  globalFileInput.addEventListener('change', async (e) => {
+    if (e.target.files[0]) {
+      try {
+        if (!window.globalEfficiencySystem) throw new Error('Global system not loaded')
+        
+        // 🚫 Flag: lagi import global
+        window.importInProgress = true
+        
+        // 🔄 Loading message
+        showToast('📥 Importing global data...', 'success')
+        
+        // 📂 Import process
+        const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
+        
+        // ✅ Import done
+        window.importInProgress = false
+        
+        // 🎉 Success message
+        showToast(`✅ ${result.imported} global records imported!`, 'success')
+        
+        // 🎨 Render UI SEKALI
+        updateTrendChart()
+        
+        // 🧹 Reset
+        e.target.value = ''
+        
+      } catch (error) {
+        window.importInProgress = false
+        console.error('Import error:', error)
+        showToast('❌ Import failed: ' + error.message, 'warn')
       }
-    })
-  }
+    }
+  })
+}
   
   const exportBtn = document.getElementById('export-efficiency')
   if (exportBtn) {
