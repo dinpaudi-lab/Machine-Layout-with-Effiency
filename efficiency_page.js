@@ -587,6 +587,44 @@ if (globalFileInput) {
 function initialize() {
   console.log('🚀 Initializing efficiency page...')
   
+  // ✅ LOAD DATA DARI CLOUD TERLEBIH DAHULU
+  if (typeof loadEfficiencyFromCloud !== 'undefined' && window.isCloudAvailable) {
+    console.log('☁️ Loading efficiency data from cloud...')
+    loadEfficiencyFromCloud()
+      .then(cloudData => {
+        if (cloudData && Object.keys(cloudData).length > 0) {
+          console.log('✅ Loaded efficiency data from cloud:', Object.keys(cloudData).length, 'machines')
+          
+          // Merge dengan data lokal jika ada
+          if (window.efficiencySystem) {
+            // Simpan dulu data lokal
+            const localData = window.efficiencySystem.efficiencyData || {}
+            
+            // Gabungkan: cloud data lebih prioritas
+            window.efficiencySystem.efficiencyData = {
+              ...localData,
+              ...cloudData  // Cloud data menimpa lokal jika ada konflik
+            }
+            
+            // Simpan kembali ke localStorage
+            window.efficiencySystem.saveEfficiencyData()
+          }
+        }
+      })
+      .catch(e => {
+        console.warn('⚠️ Failed to load from cloud:', e)
+        // Fallback ke data lokal
+        if (window.efficiencySystem) {
+          window.efficiencySystem.loadEfficiencyData()
+        }
+      })
+  } else {
+    // Fallback: load data lokal
+    if (window.efficiencySystem) {
+      window.efficiencySystem.loadEfficiencyData()
+    }
+  }
+  
   if (!window.efficiencySystem) {
     console.error('❌ Efficiency system not loaded')
     const grid = document.getElementById('efficiency-grid')
@@ -595,8 +633,6 @@ function initialize() {
     }
     return
   }
-  
-  window.efficiencySystem.loadEfficiencyData()
   
   attachEventListeners()
   renderEfficiencyGrid()
