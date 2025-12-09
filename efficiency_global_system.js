@@ -250,8 +250,27 @@ async function importGlobalEfficiencyFromExcel(file) {
                   const pickC = parseFloat(row['Pick C'] || row['pickC'] || row['Pick Shift C'] || 0)
                   const machinesRun = parseInt(row['Mesin Run'] || row['Mesin Jalan'] || row['Machines Running'] || row['machinesRun'] || GLOBAL_CONSTANTS.DEFAULT_MACHINES_RUNNING)
                   
-                  setGlobalEfficiency(date, counterA, pickA, counterB, pickB, counterC, pickC, machinesRun, `Excel Import (${sheetName})`)
-                  imported++
+                  // Set WITHOUT auto-save
+const shiftA = calculateGlobalShiftEfficiency(counterA, pickA, machinesRun)
+const shiftB = calculateGlobalShiftEfficiency(counterB, pickB, machinesRun)
+const shiftC = calculateGlobalShiftEfficiency(counterC, pickC, machinesRun)
+const global = parseFloat(((shiftA + shiftB + shiftC) / 3).toFixed(2))
+
+globalEfficiencyData[date] = {
+  counterA: parseFloat(counterA) || 0,
+  pickA: parseFloat(pickA) || 0,
+  counterB: parseFloat(counterB) || 0,
+  pickB: parseFloat(pickB) || 0,
+  counterC: parseFloat(counterC) || 0,
+  pickC: parseFloat(pickC) || 0,
+  machinesRun: parseInt(machinesRun),
+  shiftA: shiftA,
+  shiftB: shiftB,
+  shiftC: shiftC,
+  global: global,
+  timestamp: new Date().toISOString(),
+  editor: `Excel Import (${sheetName})`
+}
                 } catch (err) {
                   errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: ${err.message}`)
                 }
@@ -268,6 +287,9 @@ async function importGlobalEfficiencyFromExcel(file) {
           if (errors.length > 0) {
             console.warn('⚠️ Import errors:', errors)
           }
+          // ✅ BATCH SAVE: Save to localStorage ONCE (bukan 1000x)
+          localStorage.setItem(GLOBAL_EFFICIENCY_KEY, JSON.stringify(globalEfficiencyData))
+          console.log('💾 Global efficiency batch saved to localStorage')
           
           // ✅ STEP 3: FORCE SYNC TO CLOUD
           if (cloudReady) {
