@@ -1,12 +1,12 @@
-// ============ CONFLICT DETECTION SYSTEM ============
-// Mencegah overwrite data antar device
+// ============ CONFLICT DETECTION SYSTEM - FIXED ============
+// Mencegah overwrite data antar device - TIDAK menghalangi view updates
 
-const CONFLICT_CHECK_INTERVAL = 2000 // Check every 2 seconds
+const CONFLICT_CHECK_INTERVAL = 2000
 let lastKnownState = {}
 let isEditing = false
 let editingItemId = null
 
-// Track when user is editing
+// Track when user is ACTIVELY editing (typing, modal open)
 function startEditing(itemType, itemId) {
   isEditing = true
   editingItemId = `${itemType}_${itemId}`
@@ -19,9 +19,16 @@ function stopEditing() {
   console.log('🔓 User stopped editing')
 }
 
-// Detect conflicts
+// Detect conflicts - ONLY when user is actively editing
 function detectConflict(currentState, incomingState, itemType, itemId) {
   const key = `${itemType}_${itemId}`
+  
+  // ✅ FIX: NO conflict if user is NOT actively editing
+  if (!isEditing || editingItemId !== key) {
+    lastKnownState[key] = currentState
+    console.log('✅ Not editing, allowing update:', key)
+    return false
+  }
   
   // First time seeing this item - no conflict
   if (!lastKnownState[key]) {
@@ -29,20 +36,13 @@ function detectConflict(currentState, incomingState, itemType, itemId) {
     return false
   }
   
-  // Not editing - no conflict
-  if (!isEditing || editingItemId !== key) {
-    lastKnownState[key] = currentState
-    return false
-  }
-  
   // Check if incoming state is different from what we expect
-  // Only detect conflict if we're currently editing AND state changed externally
   const lastState = lastKnownState[key]
   const currentStateStr = JSON.stringify(currentState)
   const lastStateStr = JSON.stringify(lastState)
   
   if (lastStateStr !== currentStateStr) {
-    console.log('🔍 Conflict detected:', {
+    console.log('⚠️ Conflict detected while editing:', {
       key,
       lastState,
       currentState,
@@ -160,16 +160,16 @@ function showConflictWarning(itemType, itemId, deviceName) {
   })
 }
 
-// Monitor for real-time changes
+// ✅ PASSIVE MONITORING - Don't block reads/views
 function setupConflictDetection() {
   if (!window.isCloudAvailable) {
     console.log('⚠️ Cloud not available, conflict detection disabled')
     return
   }
   
-  console.log('🛡️ Conflict detection active')
+  console.log('🛡️ Conflict detection active (passive mode)')
   
-  // Monitor machines
+  // Monitor machines - ONLY on save
   const originalSaveMachine = window.saveMachineToCloud
   if (originalSaveMachine) {
     window.saveMachineToCloud = async function(machineId, constructId, userId, oldConstructId) {
@@ -200,7 +200,7 @@ function setupConflictDetection() {
     console.log('✅ Machine conflict wrapper installed')
   }
   
-  // Monitor constructions
+  // Monitor constructions - ONLY on save
   const originalSaveConstruction = window.saveConstructionToCloud
   if (originalSaveConstruction) {
     window.saveConstructionToCloud = async function(construction, userId, isNew) {
@@ -230,6 +230,9 @@ function setupConflictDetection() {
     }
     console.log('✅ Construction conflict wrapper installed')
   }
+  
+  // ✅ NO INTERFERENCE WITH EFFICIENCY READS
+  console.log('ℹ️ Efficiency updates allowed (view-only mode)')
 }
 
 // Initialize
@@ -253,4 +256,4 @@ window.conflictHandler = {
   showConflictWarning
 }
 
-console.log('🛡️ Conflict handler loaded')
+console.log('🛡️ Conflict handler loaded (passive mode for efficiency)')
