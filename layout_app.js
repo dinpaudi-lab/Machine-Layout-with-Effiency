@@ -347,12 +347,12 @@ if(elLogout){
   })
 }
   
-  const efficiencyBtn = $('efficiency-btn')
-  if(efficiencyBtn){
-    efficiencyBtn.addEventListener('click', ()=>{
-      openEfficiencyPage()
-    })
-  }
+  const efficiencyBtn = $('efficiency-page-btn') 
+if(efficiencyBtn){
+  efficiencyBtn.addEventListener('click', ()=>{
+    window.location.href = 'efficiency.html'  
+  })
+}
   
   const elClose = $('close-modal')
   if(elClose) elClose.addEventListener('click', closeModal)
@@ -1424,6 +1424,7 @@ if (window.efficiencySystem) {
 } else {
   console.error('❌ Efficiency system NOT available')
 }
+
 
 
 
