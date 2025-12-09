@@ -442,6 +442,49 @@ function getDeviceName() {
   return name;
 }
 
+// ============ AUTO-SYNC PENDING EFFICIENCY DATA ============
+
+// Cek dan sync data efisiensi yang pending
+async function syncPendingEfficiency() {
+  try {
+    const pending = localStorage.getItem('pending_efficiency_sync')
+    if (!pending) return
+    
+    console.log('🔄 Found pending efficiency data, syncing...')
+    const pendingData = JSON.parse(pending)
+    
+    if (typeof saveEfficiencyToCloud !== 'undefined' && window.isCloudAvailable) {
+      await saveEfficiencyToCloud(pendingData.data)
+      localStorage.removeItem('pending_efficiency_sync')
+      console.log('✅ Pending efficiency data synced to cloud')
+      
+      // Update UI jika di halaman efisiensi
+      if (typeof window.efficiencySystem !== 'undefined') {
+        window.efficiencySystem.loadEfficiencyData()
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Failed to sync pending efficiency:', e)
+  }
+}
+
+// Auto-sync ketika app load
+if (typeof supabaseInit !== 'undefined') {
+  supabaseInit().then(ready => {
+    if (ready) {
+      window.isCloudAvailable = true
+      // Cek pending data setelah cloud ready
+      setTimeout(syncPendingEfficiency, 2000)
+    }
+  })
+}
+
+// Auto-sync ketika device online
+window.addEventListener('online', () => {
+  if (window.isCloudAvailable) {
+    syncPendingEfficiency()
+  }
+})
 window.supabaseInit = supabaseInit;
 window.supabaseSignIn = supabaseSignIn;
 window.supabaseSignOut = supabaseSignOut;
