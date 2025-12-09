@@ -580,6 +580,43 @@ if (globalFileInput) {
       }
     })
   }
+   
+   // Manual sync button
+const manualSyncBtn = document.getElementById('manual-sync-btn')
+if (manualSyncBtn) {
+  manualSyncBtn.addEventListener('click', async () => {
+    manualSyncBtn.disabled = true
+    manualSyncBtn.innerHTML = '🔄 Syncing...'
+    
+    try {
+      if (typeof loadEfficiencyFromCloud !== 'undefined' && window.isCloudAvailable) {
+        const cloudData = await loadEfficiencyFromCloud()
+        if (cloudData) {
+          // Update local data with cloud data
+          if (window.efficiencySystem) {
+            window.efficiencySystem.efficiencyData = cloudData
+            window.efficiencySystem.saveEfficiencyData()
+            
+            // Refresh UI
+            renderEfficiencyGrid()
+            updateBlockSummary()
+            updateBlockChart()
+            
+            showToast('✅ Data efisiensi disinkronkan dari cloud', 'success')
+          }
+        }
+      } else {
+        showToast('❌ Cloud tidak tersedia', 'warn')
+      }
+    } catch (e) {
+      console.error('Sync error:', e)
+      showToast('❌ Gagal sync: ' + e.message, 'warn')
+    } finally {
+      manualSyncBtn.disabled = false
+      manualSyncBtn.innerHTML = '🔄 Sync Data'
+    }
+  })
+ }
 }
 
 // ============ INITIALIZATION ============
