@@ -145,8 +145,7 @@ function setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, editor) {
     editor: editor || getCurrentUserId()
   }
   
-  // Auto-save (non-blocking)
-  saveEfficiencyData()
+  // Manual save only (no auto-save during import)
   
   console.log(`✏️ Set efficiency for machine ${machineId} on ${date}:`, efficiencyData[machineId][date])
   
@@ -317,8 +316,26 @@ async function importEfficiencyFromExcel(file) {
                     date = excelDate.toISOString().split('T')[0]
                   }
                   
-                  setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, `Excel Import (${sheetName})`)
-                  imported++
+                  // Set data WITHOUT triggering save (batch mode)
+if (!efficiencyData[machineId]) {
+  efficiencyData[machineId] = {}
+}
+
+const shifts = [shiftA, shiftB, shiftC].filter(s => s !== null && s !== undefined && !isNaN(s) && s > 0)
+const global = shifts.length > 0 
+  ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
+  : 0
+
+efficiencyData[machineId][date] = {
+  shiftA: parseFloat(shiftA).toFixed(2),
+  shiftB: parseFloat(shiftB).toFixed(2),
+  shiftC: parseFloat(shiftC).toFixed(2),
+  global: parseFloat(global).toFixed(2),
+  timestamp: new Date().toISOString(),
+  editor: `Excel Import (${sheetName})`
+}
+
+imported++
                 } catch (err) {
                   errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: ${err.message}`)
                 }
@@ -330,6 +347,9 @@ async function importEfficiencyFromExcel(file) {
             }
           })
           
+          // Save to localStorage ONCE (after all imports)
+localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
+console.log('💾 Batch saved to localStorage')
           console.log(`✅ Imported ${imported} records from ${sheetsProcessed} sheets`)
           
           if (errors.length > 0) {
