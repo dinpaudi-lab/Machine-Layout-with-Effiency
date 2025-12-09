@@ -1,137 +1,11 @@
-// ============ EFFICIENCY PAGE LOGIC - FIXED RATE LIMIT ============
-// Menampilkan dan mengelola data efisiensi dengan throttled sync
+// ============ EFFICIENCY PAGE LOGIC - FINAL FIX ============
+// Single load, no spam, smooth updates
 
 let isLoading = false
+let hasLoadedOnce = false // ← NEW: Track if already loaded
 let lastLoadTime = 0
-const LOAD_COOLDOWN = 5000 // 5 seconds between loads
+const LOAD_COOLDOWN = 5000
 
-// ✅ THROTTLED LOAD - Prevent spam requests
-async function loadAllEfficiencyData() {
-  const now = Date.now()
-  
-  // Prevent loading too frequently
-  if (isLoading || (now - lastLoadTime < LOAD_COOLDOWN)) {
-    console.log('⏳ Load cooldown, skipping...')
-    return false
-  }
-  
-  isLoading = true
-  lastLoadTime = now
-  
-  try {
-    console.log('📥 Loading data from cloud...')
-    
-    // Load machine efficiency
-    if (typeof loadEfficiencyFromCloud !== 'undefined') {
-      const cloudData = await loadEfficiencyFromCloud()
-      if (cloudData && Object.keys(cloudData).length > 0) {
-        console.log('✅ Loaded efficiency:', Object.keys(cloudData).length, 'machines')
-        
-        if (window.efficiencySystem) {
-          window.efficiencySystem.efficiencyData = cloudData
-          localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
-        }
-      }
-    }
-    
-    // Load global efficiency
-    if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
-      const globalData = await loadGlobalEfficiencyFromCloud()
-      if (globalData && Object.keys(globalData).length > 0) {
-        console.log('✅ Loaded global:', Object.keys(globalData).length, 'dates')
-        
-        if (window.globalEfficiencySystem) {
-          window.globalEfficiencySystem.globalEfficiencyData = globalData
-          localStorage.setItem('global_efficiency_v1', JSON.stringify(globalData))
-        }
-      }
-    }
-    
-    // Update UI
-    renderEfficiencyGrid()
-    updateBlockSummary()
-    updateTrendChart()
-    updateBlockChart()
-    
-    return true
-  } catch (e) {
-    console.error('❌ Load error:', e.message)
-    return false
-  } finally {
-    isLoading = false
-  }
-}
-
-// ✅ INIT - Load only ONCE on startup
-(async () => {
-  if (typeof supabaseInit !== 'undefined') {
-    console.log('🔧 Initializing Supabase...')
-    const ready = await supabaseInit()
-    window.isCloudAvailable = ready
-    console.log('☁️ Cloud status:', ready ? '✅' : '❌')
-    
-    if (ready) {
-      // Load ONCE on startup
-      await loadAllEfficiencyData()
-      
-      // Setup real-time (passive listener only)
-      setupEfficiencyRealtime()
-    }
-  }
-})()
-
-// ✅ REAL-TIME - Passive listener with debounce
-let updateTimeout = null
-
-function setupEfficiencyRealtime() {
-  if (!window.isCloudAvailable || typeof setupEfficiencyRealtimeListener === 'undefined') {
-    console.warn('⚠️ Real-time not available')
-    return
-  }
-  
-  console.log('🔄 Activating real-time...')
-  
-  setupEfficiencyRealtimeListener(
-    // On machine efficiency update - DEBOUNCED
-    (newEffData) => {
-      clearTimeout(updateTimeout)
-      updateTimeout = setTimeout(() => {
-        console.log('📡 Real-time: Efficiency updated')
-        
-        if (window.efficiencySystem) {
-          window.efficiencySystem.efficiencyData = newEffData
-          localStorage.setItem('machine_efficiency_v2', JSON.stringify(newEffData))
-          
-          renderEfficiencyGrid()
-          updateBlockSummary()
-          updateBlockChart()
-          
-          showToast('🔄 Data diperbarui', 'success')
-        }
-      }, 2000) // Wait 2s before updating
-    },
-    // On global efficiency update - DEBOUNCED
-    (newGlobalData) => {
-      clearTimeout(updateTimeout)
-      updateTimeout = setTimeout(() => {
-        console.log('📡 Real-time: Global updated')
-        
-        if (window.globalEfficiencySystem) {
-          window.globalEfficiencySystem.globalEfficiencyData = newGlobalData
-          localStorage.setItem('global_efficiency_v1', JSON.stringify(newGlobalData))
-          
-          updateTrendChart()
-          
-          showToast('🔄 Global diperbarui', 'success')
-        }
-      }, 2000)
-    }
-  )
-  
-  console.log('✅ Real-time active')
-}
-
-// ============ BLOCKS DEFINITION ============
 const BLOCKS = {
   A: [{start: 1, end: 160}],
   B: [
@@ -164,8 +38,65 @@ function getMachineBlock(machineNum) {
   return '?'
 }
 
-// ============ RENDER FUNCTIONS ============
+// ✅ THROTTLED LOAD - Only once per cooldown
+async function loadAllEfficiencyData(force = false) {
+  const now = Date.now()
+  
+  // Skip if already loaded (unless forced)
+  if (hasLoadedOnce && !force) {
+    console.log('ℹ️ Already loaded, skipping')
+    return false
+  }
+  
+  // Cooldown check
+  if (isLoading || (now - lastLoadTime < LOAD_COOLDOWN)) {
+    console.log('⏳ Cooldown active, skipping')
+    return false
+  }
+  
+  isLoading = true
+  lastLoadTime = now
+  
+  try {
+    console.log('📥 Loading from cloud...')
+    
+    // Load machine efficiency
+    if (typeof loadEfficiencyFromCloud !== 'undefined') {
+      const cloudData = await loadEfficiencyFromCloud()
+      if (cloudData && Object.keys(cloudData).length > 0) {
+        console.log('✅ Loaded', Object.keys(cloudData).length, 'machines')
+        
+        if (window.efficiencySystem) {
+          window.efficiencySystem.efficiencyData = cloudData
+          localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
+        }
+      }
+    }
+    
+    // Load global efficiency
+    if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
+      const globalData = await loadGlobalEfficiencyFromCloud()
+      if (globalData && Object.keys(globalData).length > 0) {
+        console.log('✅ Loaded', Object.keys(globalData).length, 'dates')
+        
+        if (window.globalEfficiencySystem) {
+          window.globalEfficiencySystem.globalEfficiencyData = globalData
+          localStorage.setItem('global_efficiency_v1', JSON.stringify(globalData))
+        }
+      }
+    }
+    
+    hasLoadedOnce = true
+    return true
+  } catch (e) {
+    console.error('❌ Load error:', e.message)
+    return false
+  } finally {
+    isLoading = false
+  }
+}
 
+// ✅ RENDER FUNCTIONS (No API calls)
 function renderEfficiencyGrid() {
   const grid = document.getElementById('efficiency-grid')
   const dateFilter = document.getElementById('date-filter')
@@ -177,7 +108,7 @@ function renderEfficiencyGrid() {
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
   if (!window.efficiencySystem) {
-    grid.innerHTML = '<div class="no-data">❌ Efficiency system not loaded</div>'
+    grid.innerHTML = '<div class="no-data">❌ System not loaded</div>'
     return
   }
   
@@ -207,7 +138,7 @@ function renderEfficiencyGrid() {
   }
   
   if (machinesWithData.length === 0) {
-    grid.innerHTML = `<div class="no-data">Tidak ada data efisiensi untuk tanggal ${date}.</div>`
+    grid.innerHTML = `<div class="no-data">Tidak ada data untuk ${date}</div>`
     return
   }
   
@@ -322,7 +253,7 @@ function updateTrendChart() {
     data: {
       labels: dateLabels,
       datasets: [{
-        label: 'Efisiensi Global Pabrik (%)',
+        label: 'Efisiensi Global (%)',
         data: globalEfficiency,
         borderColor: '#ffd166',
         backgroundColor: 'rgba(255, 209, 102, 0.1)',
@@ -489,8 +420,54 @@ function showToast(text, type = '') {
   }, 3500)
 }
 
-// ============ EVENT LISTENERS ============
+// ✅ REAL-TIME with debounce
+let updateTimeout = null
 
+function setupEfficiencyRealtime() {
+  if (!window.isCloudAvailable || typeof setupEfficiencyRealtimeListener === 'undefined') {
+    console.warn('⚠️ Real-time unavailable')
+    return
+  }
+  
+  console.log('🔄 Real-time active')
+  
+  setupEfficiencyRealtimeListener(
+    (newEffData) => {
+      clearTimeout(updateTimeout)
+      updateTimeout = setTimeout(() => {
+        console.log('📡 Efficiency updated')
+        
+        if (window.efficiencySystem) {
+          window.efficiencySystem.efficiencyData = newEffData
+          localStorage.setItem('machine_efficiency_v2', JSON.stringify(newEffData))
+          
+          renderEfficiencyGrid()
+          updateBlockSummary()
+          updateBlockChart()
+          
+          showToast('🔄 Data diperbarui', 'success')
+        }
+      }, 2000)
+    },
+    (newGlobalData) => {
+      clearTimeout(updateTimeout)
+      updateTimeout = setTimeout(() => {
+        console.log('📡 Global updated')
+        
+        if (window.globalEfficiencySystem) {
+          window.globalEfficiencySystem.globalEfficiencyData = newGlobalData
+          localStorage.setItem('global_efficiency_v1', JSON.stringify(newGlobalData))
+          
+          updateTrendChart()
+          
+          showToast('🔄 Global diperbarui', 'success')
+        }
+      }, 2000)
+    }
+  )
+}
+
+// ✅ EVENT LISTENERS
 function attachEventListeners() {
   const dateFilter = document.getElementById('date-filter')
   if (dateFilter) {
@@ -515,16 +492,14 @@ function attachEventListeners() {
   const importMachineBtn = document.getElementById('import-efficiency')
   if (importMachineBtn) {
     importMachineBtn.addEventListener('click', () => {
-      const fileInput = document.getElementById('efficiency-machine-file-input')
-      if (fileInput) fileInput.click()
+      document.getElementById('efficiency-machine-file-input')?.click()
     })
   }
 
   const importGlobalBtn = document.getElementById('import-efficiency-global')
   if (importGlobalBtn) {
     importGlobalBtn.addEventListener('click', () => {
-      const fileInput = document.getElementById('efficiency-global-file-input')
-      if (fileInput) fileInput.click()
+      document.getElementById('efficiency-global-file-input')?.click()
     })
   }
 
@@ -533,15 +508,10 @@ function attachEventListeners() {
     machineFileInput.addEventListener('change', async (e) => {
       if (e.target.files[0]) {
         try {
-          if (!window.efficiencySystem) throw new Error('Efficiency system not loaded')
+          if (!window.efficiencySystem) throw new Error('System not loaded')
           
           const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
           showToast(`✅ Imported ${result.imported} records`, 'success')
-          
-          if (result.errors.length > 0) {
-            console.warn('Import errors:', result.errors)
-            showToast(`⚠️ ${result.errors.length} errors`, 'warn')
-          }
           
           renderEfficiencyGrid()
           updateBlockSummary()
@@ -565,11 +535,7 @@ function attachEventListeners() {
           if (!window.globalEfficiencySystem) throw new Error('Global system not loaded')
           
           const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
-          showToast(`✅ Imported ${result.imported} global records`, 'success')
-          
-          if (result.errors.length > 0) {
-            showToast(`⚠️ ${result.errors.length} errors`, 'warn')
-          }
+          showToast(`✅ Imported ${result.imported} global`, 'success')
           
           updateTrendChart()
           e.target.value = ''
@@ -586,35 +552,34 @@ function attachEventListeners() {
     exportBtn.addEventListener('click', async () => {
       try {
         const success = await window.efficiencySystem.exportEfficiencyToExcel()
-        if (success) {
-          showToast('✅ Export berhasil', 'success')
-        } else {
-          showToast('❌ Export gagal', 'warn')
-        }
+        showToast(success ? '✅ Export berhasil' : '❌ Export gagal', success ? 'success' : 'warn')
       } catch (error) {
         showToast('❌ Export failed', 'warn')
       }
     })
   }
    
-  // Manual sync with cooldown
   const manualSyncBtn = document.getElementById('manual-sync-btn')
   if (manualSyncBtn) {
     manualSyncBtn.addEventListener('click', async () => {
       if (isLoading) {
-        showToast('⏳ Masih loading, tunggu sebentar', 'warn')
+        showToast('⏳ Masih loading', 'warn')
         return
       }
       
       manualSyncBtn.disabled = true
       manualSyncBtn.innerHTML = '🔄 Loading...'
       
-      const success = await loadAllEfficiencyData()
+      const success = await loadAllEfficiencyData(true) // force = true
       
       if (success) {
-        showToast('✅ Data berhasil di-refresh', 'success')
+        renderEfficiencyGrid()
+        updateBlockSummary()
+        updateTrendChart()
+        updateBlockChart()
+        showToast('✅ Data refreshed', 'success')
       } else {
-        showToast('❌ Gagal sync', 'warn')
+        showToast('❌ Sync failed', 'warn')
       }
       
       manualSyncBtn.disabled = false
@@ -623,11 +588,11 @@ function attachEventListeners() {
   }
 }
 
-// ============ INITIALIZATION ============
-
+// ✅ INITIALIZATION - Load ONCE
 async function initialize() {
-  console.log('🚀 Initializing efficiency page...')
+  console.log('🚀 Initializing...')
   
+  // Wait for systems
   let attempts = 0
   while (attempts < 10) {
     if (window.efficiencySystem && window.globalEfficiencySystem) {
@@ -639,14 +604,26 @@ async function initialize() {
   }
   
   if (!window.efficiencySystem) {
-    console.error('❌ Efficiency system not loaded')
-    const grid = document.getElementById('efficiency-grid')
-    if (grid) {
-      grid.innerHTML = '<div class="no-data">❌ System not loaded</div>'
-    }
+    console.error('❌ System not loaded')
     return
   }
   
+  // ✅ STEP 1: Setup Supabase (if available)
+  if (typeof supabaseInit !== 'undefined') {
+    const ready = await supabaseInit()
+    window.isCloudAvailable = ready
+    console.log('☁️ Cloud:', ready ? 'Ready' : 'Offline')
+    
+    if (ready) {
+      // ✅ STEP 2: Load data ONCE
+      await loadAllEfficiencyData()
+      
+      // ✅ STEP 3: Setup real-time listener
+      setupEfficiencyRealtime()
+    }
+  }
+  
+  // ✅ STEP 4: Render UI
   attachEventListeners()
   renderEfficiencyGrid()
   updateBlockSummary()
@@ -654,9 +631,10 @@ async function initialize() {
   updateBlockChart()
   updateClock()
   
-  console.log('✅ Efficiency page initialized')
+  console.log('✅ Initialized')
 }
 
+// Run once
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initialize)
 } else {
@@ -664,8 +642,6 @@ if (document.readyState === 'loading') {
 }
 
 setInterval(updateClock, 1000)
-
-// ❌ REMOVED AUTO-REFRESH - Cause rate limit
 
 window.efficiencyPage = {
   renderEfficiencyGrid,
@@ -675,4 +651,4 @@ window.efficiencyPage = {
   loadAllEfficiencyData
 }
 
-console.log('✅ Efficiency page loaded (rate limit fixed)')
+console.log('✅ Efficiency page loaded (FINAL FIX)')
