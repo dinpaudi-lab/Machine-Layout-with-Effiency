@@ -356,6 +356,10 @@ console.log('💾 Batch saved to localStorage')
             console.warn('⚠️ Import errors:', errors)
           }
           
+          // 💾 SAVE TO LOCALSTORAGE DULU!
+localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
+console.log('💾 Saved', imported, 'records to localStorage')
+          
           // ✅ STEP 3: FORCE SYNC TO CLOUD
           if (cloudReady) {
             console.log('☁️ Force syncing to cloud...')
