@@ -1,15 +1,58 @@
-// ============ EFFICIENCY PAGE LOGIC - FIXED ============
+// ============ EFFICIENCY PAGE LOGIC - AUTO LOAD FROM CLOUD ============
 // Menampilkan dan mengelola data efisiensi
 
-// ✅ FORCE INIT SUPABASE IMMEDIATELY
-   (async () => {
-     if (typeof supabaseInit !== 'undefined') {
-       console.log('🔧 Auto-initializing Supabase...')
-       const ready = await supabaseInit()
-       window.isCloudAvailable = ready
-       console.log('☁️ Cloud status:', ready ? '✅ Ready' : '❌ Offline')
-     }
-   })()
+// ✅ FORCE INIT SUPABASE & LOAD DATA IMMEDIATELY
+(async () => {
+  if (typeof supabaseInit !== 'undefined') {
+    console.log('🔧 Auto-initializing Supabase...')
+    const ready = await supabaseInit()
+    window.isCloudAvailable = ready
+    console.log('☁️ Cloud status:', ready ? '✅ Ready' : '❌ Offline')
+    
+    if (ready) {
+      // ✅ LOAD EFFICIENCY DATA FROM CLOUD
+      console.log('📥 Loading efficiency data from cloud...')
+      if (typeof loadEfficiencyFromCloud !== 'undefined') {
+        try {
+          const cloudData = await loadEfficiencyFromCloud()
+          if (cloudData && Object.keys(cloudData).length > 0) {
+            console.log('✅ Loaded efficiency from cloud:', Object.keys(cloudData).length, 'machines')
+            
+            if (window.efficiencySystem) {
+              window.efficiencySystem.efficiencyData = cloudData
+              window.efficiencySystem.saveEfficiencyData() // Save to localStorage
+            }
+          } else {
+            console.log('ℹ️ No cloud data, using local')
+          }
+        } catch (e) {
+          console.error('❌ Failed to load efficiency from cloud:', e)
+        }
+      }
+      
+      // ✅ LOAD GLOBAL EFFICIENCY FROM CLOUD
+      console.log('📥 Loading global efficiency from cloud...')
+      if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
+        try {
+          const globalData = await loadGlobalEfficiencyFromCloud()
+          if (globalData && Object.keys(globalData).length > 0) {
+            console.log('✅ Loaded global from cloud:', Object.keys(globalData).length, 'dates')
+            
+            if (window.globalEfficiencySystem) {
+              window.globalEfficiencySystem.globalEfficiencyData = globalData
+              window.globalEfficiencySystem.saveGlobalEfficiency() // Save to localStorage
+            }
+          } else {
+            console.log('ℹ️ No global cloud data, using local')
+          }
+        } catch (e) {
+          console.error('❌ Failed to load global from cloud:', e)
+        }
+      }
+    }
+  }
+})()
+
 const BLOCKS = {
   A: [{start: 1, end: 160}],
   B: [
@@ -179,27 +222,24 @@ function updateTrendChart() {
   
   const ctx = canvas.getContext('2d')
   
-  // Check if global efficiency system available
   if (!window.globalEfficiencySystem) {
     console.error('Global efficiency system not loaded')
     return
   }
   
-  const dates = []
   const dateLabels = []
   const globalEfficiency = []
 
-  // Get last 30 days of global efficiency data
+  // Get last 30 days
   for (let i = 29; i >= 0; i--) {
     const date = new Date()
     date.setDate(date.getDate() - i)
     const dateStr = date.toISOString().split('T')[0]
     
-   dateLabels.push(
-   date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
-)
+    dateLabels.push(
+      date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+    )
     
-    // Get global efficiency for this date
     const globalData = window.globalEfficiencySystem.getGlobalEfficiency(dateStr)
     globalEfficiency.push(globalData ? globalData.global : 0)
   }
@@ -241,7 +281,6 @@ function updateTrendChart() {
         },
         datalabels: typeof ChartDataLabels !== 'undefined' ? {
           display: function(context) {
-            // Hanya tampilkan label di titik dengan data > 0
             return context.dataset.data[context.dataIndex] > 0
           },
           color: '#ffd166',
@@ -260,7 +299,6 @@ function updateTrendChart() {
         tooltip: {
           callbacks: {
             title: function(context) {
-              // Show full date in tooltip
               const index = context[0].dataIndex
               const date = new Date()
               date.setDate(date.getDate() - (29 - index))
@@ -463,106 +501,84 @@ function attachEventListeners() {
     sortFilter.addEventListener('change', renderEfficiencyGrid)
   }
   
-  // Import Mesin button (sesuai dengan efficiency.html)
   const importMachineBtn = document.getElementById('import-efficiency')
   if (importMachineBtn) {
     importMachineBtn.addEventListener('click', () => {
       const fileInput = document.getElementById('efficiency-machine-file-input')
       if (fileInput) {
         fileInput.click()
-      } else {
-        console.error('❌ File input efficiency-machine-file-input tidak ditemukan')
       }
     })
-    console.log('✅ Import mesin button listener attached')
-  } else {
-    console.warn('⚠️ import-efficiency button tidak ditemukan')
   }
 
-  // Import Global button
   const importGlobalBtn = document.getElementById('import-efficiency-global')
   if (importGlobalBtn) {
     importGlobalBtn.addEventListener('click', () => {
       const fileInput = document.getElementById('efficiency-global-file-input')
       if (fileInput) {
         fileInput.click()
-      } else {
-        console.error('❌ File input efficiency-global-file-input tidak ditemukan')
       }
     })
-    console.log('✅ Import global button listener attached')
-  } else {
-    console.warn('⚠️ import-efficiency-global button tidak ditemukan')
   }
 
-const machineFileInput = document.getElementById('efficiency-machine-file-input')
-if (machineFileInput) {
-  console.log('✅ Machine file input found')
-  machineFileInput.addEventListener('change', async (e) => {
-    if (e.target.files[0]) {
-      console.log('📁 File selected:', e.target.files[0].name)
-      try {
-        if (!window.efficiencySystem) {
-          throw new Error('Efficiency system not loaded')
+  const machineFileInput = document.getElementById('efficiency-machine-file-input')
+  if (machineFileInput) {
+    machineFileInput.addEventListener('change', async (e) => {
+      if (e.target.files[0]) {
+        try {
+          if (!window.efficiencySystem) {
+            throw new Error('Efficiency system not loaded')
+          }
+          
+          const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
+          showToast(`✅ Imported ${result.imported} records from ${result.sheetsProcessed} sheets`, 'success')
+          
+          if (result.errors.length > 0) {
+            console.warn('Import errors:', result.errors)
+            showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
+          }
+          
+          renderEfficiencyGrid()
+          updateBlockSummary()
+          updateTrendChart()
+          updateBlockChart()
+          
+          e.target.value = ''
+        } catch (error) {
+          console.error('Import error:', error)
+          showToast('❌ Import failed: ' + error.message, 'warn')
         }
-        
-        console.log('🔄 Starting import...')
-        const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
-        console.log('✅ Import result:', result)
-        
-        showToast(`✅ Imported ${result.imported} records from ${result.sheetsProcessed} sheets`, 'success')
-        
-        if (result.errors.length > 0) {
-          console.warn('Import errors:', result.errors)
-          showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
-        }
-        
-        renderEfficiencyGrid()
-        updateBlockSummary()
-        updateTrendChart()
-        updateBlockChart()
-        
-        e.target.value = ''
-      } catch (error) {
-        console.error('Import error:', error)
-        showToast('❌ Import failed: ' + error.message, 'warn')
       }
-    } else {
-      console.warn('⚠️ No file selected')
-    }
-  })
-  console.log('✅ Machine file input listener attached')
-} else {
-  console.error('❌ efficiency-machine-file-input element NOT FOUND')
-}
+    })
+  }
 
-const globalFileInput = document.getElementById('efficiency-global-file-input')
-if (globalFileInput) {
-  globalFileInput.addEventListener('change', async (e) => {
-    if (e.target.files[0]) {
-      try {
-        if (!window.globalEfficiencySystem) {
-          throw new Error('Global efficiency system not loaded')
+  const globalFileInput = document.getElementById('efficiency-global-file-input')
+  if (globalFileInput) {
+    globalFileInput.addEventListener('change', async (e) => {
+      if (e.target.files[0]) {
+        try {
+          if (!window.globalEfficiencySystem) {
+            throw new Error('Global efficiency system not loaded')
+          }
+          
+          const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
+          showToast(`✅ Imported ${result.imported} records from ${result.sheetsProcessed} sheets`, 'success')
+          
+          if (result.errors.length > 0) {
+            console.warn('Import errors:', result.errors)
+            showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
+          }
+          
+          updateTrendChart()
+          
+          e.target.value = ''
+        } catch (error) {
+          console.error('Import error:', error)
+          showToast('❌ Import failed: ' + error.message, 'warn')
         }
-        
-        const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
-        showToast(`✅ Imported ${result.imported} records from ${result.sheetsProcessed} sheets`, 'success')
-        
-        if (result.errors.length > 0) {
-          console.warn('Import errors:', result.errors)
-          showToast(`⚠️ ${result.errors.length} errors during import`, 'warn')
-        }
-        
-        updateTrendChart()
-        
-        e.target.value = ''
-      } catch (error) {
-        console.error('Import error:', error)
-        showToast('❌ Import failed: ' + error.message, 'warn')
       }
-    }
-  })
-}
+    })
+  }
   
   const exportBtn = document.getElementById('export-efficiency')
   if (exportBtn) {
@@ -581,85 +597,74 @@ if (globalFileInput) {
     })
   }
    
-   // Manual sync button
-const manualSyncBtn = document.getElementById('manual-sync-btn')
-if (manualSyncBtn) {
-  manualSyncBtn.addEventListener('click', async () => {
-    manualSyncBtn.disabled = true
-    manualSyncBtn.innerHTML = '🔄 Syncing...'
-    
-    try {
-      if (typeof loadEfficiencyFromCloud !== 'undefined' && window.isCloudAvailable) {
-        const cloudData = await loadEfficiencyFromCloud()
-        if (cloudData) {
-          // Update local data with cloud data
-          if (window.efficiencySystem) {
-            window.efficiencySystem.efficiencyData = cloudData
-            window.efficiencySystem.saveEfficiencyData()
-            
-            // Refresh UI
-            renderEfficiencyGrid()
-            updateBlockSummary()
-            updateBlockChart()
-            
-            showToast('✅ Data efisiensi disinkronkan dari cloud', 'success')
+  // Manual sync button - RELOAD FROM CLOUD
+  const manualSyncBtn = document.getElementById('manual-sync-btn')
+  if (manualSyncBtn) {
+    manualSyncBtn.addEventListener('click', async () => {
+      manualSyncBtn.disabled = true
+      manualSyncBtn.innerHTML = '🔄 Loading...'
+      
+      console.log('🔄 Manual sync started...')
+      
+      try {
+        // ✅ LOAD EFFICIENCY FROM CLOUD
+        if (typeof loadEfficiencyFromCloud !== 'undefined' && window.isCloudAvailable) {
+          const cloudData = await loadEfficiencyFromCloud()
+          if (cloudData && Object.keys(cloudData).length > 0) {
+            if (window.efficiencySystem) {
+              window.efficiencySystem.efficiencyData = cloudData
+              window.efficiencySystem.saveEfficiencyData()
+            }
+            showToast('✅ Efficiency data synced from cloud', 'success')
+          } else {
+            showToast('ℹ️ No cloud data available', 'warn')
           }
         }
-      } else {
-        showToast('❌ Cloud tidak tersedia', 'warn')
+        
+        // ✅ LOAD GLOBAL FROM CLOUD
+        if (typeof loadGlobalEfficiencyFromCloud !== 'undefined' && window.isCloudAvailable) {
+          const globalData = await loadGlobalEfficiencyFromCloud()
+          if (globalData && Object.keys(globalData).length > 0) {
+            if (window.globalEfficiencySystem) {
+              window.globalEfficiencySystem.globalEfficiencyData = globalData
+              window.globalEfficiencySystem.saveGlobalEfficiency()
+            }
+            showToast('✅ Global data synced from cloud', 'success')
+          }
+        }
+        
+        // Refresh UI
+        renderEfficiencyGrid()
+        updateBlockSummary()
+        updateBlockChart()
+        updateTrendChart()
+        
+      } catch (e) {
+        console.error('Sync error:', e)
+        showToast('❌ Gagal sync: ' + e.message, 'warn')
+      } finally {
+        manualSyncBtn.disabled = false
+        manualSyncBtn.innerHTML = '🔄 Sync Data'
       }
-    } catch (e) {
-      console.error('Sync error:', e)
-      showToast('❌ Gagal sync: ' + e.message, 'warn')
-    } finally {
-      manualSyncBtn.disabled = false
-      manualSyncBtn.innerHTML = '🔄 Sync Data'
-    }
-  })
- }
+    })
+  }
 }
 
 // ============ INITIALIZATION ============
 
-function initialize() {
+async function initialize() {
   console.log('🚀 Initializing efficiency page...')
   
-  // ✅ LOAD DATA DARI CLOUD TERLEBIH DAHULU
-  if (typeof loadEfficiencyFromCloud !== 'undefined' && window.isCloudAvailable) {
-    console.log('☁️ Loading efficiency data from cloud...')
-    loadEfficiencyFromCloud()
-      .then(cloudData => {
-        if (cloudData && Object.keys(cloudData).length > 0) {
-          console.log('✅ Loaded efficiency data from cloud:', Object.keys(cloudData).length, 'machines')
-          
-          // Merge dengan data lokal jika ada
-          if (window.efficiencySystem) {
-            // Simpan dulu data lokal
-            const localData = window.efficiencySystem.efficiencyData || {}
-            
-            // Gabungkan: cloud data lebih prioritas
-            window.efficiencySystem.efficiencyData = {
-              ...localData,
-              ...cloudData  // Cloud data menimpa lokal jika ada konflik
-            }
-            
-            // Simpan kembali ke localStorage
-            window.efficiencySystem.saveEfficiencyData()
-          }
-        }
-      })
-      .catch(e => {
-        console.warn('⚠️ Failed to load from cloud:', e)
-        // Fallback ke data lokal
-        if (window.efficiencySystem) {
-          window.efficiencySystem.loadEfficiencyData()
-        }
-      })
-  } else {
-    // Fallback: load data lokal
-    if (window.efficiencySystem) {
-      window.efficiencySystem.loadEfficiencyData()
+  // Wait for systems to be ready
+  let attempts = 0
+  while (attempts < 10) {
+    if (window.efficiencySystem && window.globalEfficiencySystem) {
+      console.log('✅ Systems ready')
+      break
     }
+    console.log(`⏳ Waiting for systems... (${attempts + 1}/10)`)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    attempts++
   }
   
   if (!window.efficiencySystem) {
@@ -689,12 +694,35 @@ if (document.readyState === 'loading') {
 
 setInterval(updateClock, 1000)
 
+// Auto-refresh data every 30 seconds (optional)
 setInterval(() => {
-  renderEfficiencyGrid()
-  updateBlockSummary()
-  updateTrendChart()
-  updateBlockChart()
-}, 30000)
+  if (window.isCloudAvailable) {
+    console.log('🔄 Auto-refreshing data from cloud...')
+    
+    // Reload from cloud in background
+    if (typeof loadEfficiencyFromCloud !== 'undefined') {
+      loadEfficiencyFromCloud().then(cloudData => {
+        if (cloudData && window.efficiencySystem) {
+          window.efficiencySystem.efficiencyData = cloudData
+          window.efficiencySystem.saveEfficiencyData()
+          renderEfficiencyGrid()
+          updateBlockSummary()
+          updateBlockChart()
+        }
+      }).catch(e => console.warn('Auto-refresh failed:', e))
+    }
+    
+    if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
+      loadGlobalEfficiencyFromCloud().then(globalData => {
+        if (globalData && window.globalEfficiencySystem) {
+          window.globalEfficiencySystem.globalEfficiencyData = globalData
+          window.globalEfficiencySystem.saveGlobalEfficiency()
+          updateTrendChart()
+        }
+      }).catch(e => console.warn('Auto-refresh global failed:', e))
+    }
+  }
+}, 30000) // Every 30 seconds
 
 window.efficiencyPage = {
   renderEfficiencyGrid,
@@ -703,4 +731,4 @@ window.efficiencyPage = {
   updateBlockChart
 }
 
-console.log('✅ Efficiency page script loaded')
+console.log('✅ Efficiency page script loaded with auto-load from cloud')
