@@ -205,4 +205,25 @@ select,
 .modal-card select {
   background-color: rgba(15, 23, 42, 0.9) !important;
 }
+/* Efficiency Button - Force Visible */
+#efficiency-page-btn {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background: linear-gradient(90deg, #ffd166, #ff6ec7) !important;
+  color: #081026 !important;
+  font-weight: 700 !important;
+  padding: 8px 16px !important;
+  border-radius: 999px !important;
+  border: none !important;
+  cursor: pointer !important;
+  margin-right: 12px !important;
+  box-shadow: 0 6px 18px rgba(255, 110, 199, 0.3) !important;
+  transition: transform 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+#efficiency-page-btn:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 12px 30px rgba(255, 110, 199, 0.4) !important;
+}
 
