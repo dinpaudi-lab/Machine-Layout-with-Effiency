@@ -287,9 +287,10 @@ globalEfficiencyData[date] = {
           if (errors.length > 0) {
             console.warn('⚠️ Import errors:', errors)
           }
-          // ✅ BATCH SAVE: Save to localStorage ONCE (bukan 1000x)
-          localStorage.setItem(GLOBAL_EFFICIENCY_KEY, JSON.stringify(globalEfficiencyData))
-          console.log('💾 Global efficiency batch saved to localStorage')
+          
+          // 💾 SAVE TO LOCALSTORAGE!
+localStorage.setItem(GLOBAL_EFFICIENCY_KEY, JSON.stringify(globalEfficiencyData))
+console.log('💾 Saved', imported, 'global records to localStorage')
           
           // ✅ STEP 3: FORCE SYNC TO CLOUD
           if (cloudReady) {
