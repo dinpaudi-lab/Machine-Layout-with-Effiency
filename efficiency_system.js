@@ -37,13 +37,24 @@ function loadEfficiencyData() {
 function saveEfficiencyData() {
   try {
     localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
-    console.log('💾 Efficiency data saved')
+    console.log('💾 Efficiency data saved locally')
     
-    // Sync to cloud if available
+    // ✅ SYNC KE CLOUD SETIAP SIMPAN
     if (typeof saveEfficiencyToCloud !== 'undefined' && window.isCloudAvailable) {
-      saveEfficiencyToCloud(efficiencyData).catch(e => 
-        console.warn('Cloud efficiency sync failed:', e)
-      )
+      console.log('☁️ Auto-syncing efficiency data to cloud...')
+      saveEfficiencyToCloud(efficiencyData)
+        .then(() => {
+          console.log('✅ Efficiency data synced to cloud')
+        })
+        .catch(e => {
+          console.warn('⚠️ Cloud efficiency sync failed:', e)
+          // Simpan sebagai pending sync
+          localStorage.setItem('pending_efficiency_sync', JSON.stringify({
+            data: efficiencyData,
+            timestamp: new Date().toISOString(),
+            device: getDeviceId()
+          }))
+        })
     }
   } catch (e) {
     console.error('❌ Error saving efficiency:', e)
@@ -271,18 +282,37 @@ async function importEfficiencyFromExcel(file) {
           console.warn('⚠️ Import errors:', errors)
         }
         
-        // ✅ FORCE CLOUD SYNC
-        if (typeof saveEfficiencyToCloud !== 'undefined' && window.isCloudAvailable) {
-          console.log('☁️ Forcing cloud sync...')
-          const syncSuccess = await saveEfficiencyToCloud(efficiencyData)
-          if (syncSuccess) {
-            console.log('✅✅✅ Cloud synced successfully!')
-          } else {
-            console.error('❌ Cloud sync FAILED')
-          }
-        } else {
-          console.warn('⚠️ Cloud not available')
-        }
+        // ✅ AUTO-SYNC KE CLOUD SETELAH IMPORT
+if (typeof saveEfficiencyToCloud !== 'undefined' && window.isCloudAvailable) {
+  console.log('☁️ Syncing imported efficiency data to cloud...')
+  try {
+    await saveEfficiencyToCloud(efficiencyData)
+    console.log('✅✅✅ Imported data synced to cloud!')
+    
+    // Beri tahu user
+    if (typeof showToast !== 'undefined') {
+      showToast(`✅ ${imported} data efisiensi diimpor & tersinkron ke cloud`, 'success')
+    }
+  } catch (syncErr) {
+    console.error('❌ Cloud sync failed:', syncErr)
+    // Simpan sebagai pending
+    localStorage.setItem('pending_efficiency_sync', JSON.stringify({
+      data: efficiencyData,
+      timestamp: new Date().toISOString(),
+      source: 'excel_import',
+      device: getDeviceId()
+    }))
+    
+    if (typeof showToast !== 'undefined') {
+      showToast('⚠️ Data disimpan lokal (cloud offline)', 'warn')
+    }
+  }
+} else {
+  console.warn('⚠️ Cloud not available')
+  if (typeof showToast !== 'undefined') {
+    showToast('⚠️ Data disimpan lokal saja', 'warn')
+  }
+}
         
         resolve({ imported, errors, sheetsProcessed })
       } catch (error) {
