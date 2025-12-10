@@ -433,11 +433,13 @@ function setupEfficiencyRealtime() {
   
   setupEfficiencyRealtimeListener(
     (newEffData) => {
-      // CEK: Kalau lampu merah, STOP!
-    if (window.importInProgress) {
-      console.log('⏸️ Lagi import, skip update')
-      return  // KELUAR, gak usah lanjut
-    }
+      // ✅ CEK: Kalau loading overlay masih ada, SKIP!
+      const overlay = document.getElementById('import-loading-overlay')
+      if (overlay && overlay.style.display !== 'none') {
+        console.log('⏸️ Loading overlay active, skip update')
+        return
+      }
+      
       clearTimeout(updateTimeout)
       updateTimeout = setTimeout(() => {
         console.log('📡 Efficiency updated')
@@ -455,11 +457,13 @@ function setupEfficiencyRealtime() {
       }, 2000)
     },
     (newGlobalData) => {
-      // CEK: Kalau lampu merah, STOP!
-    if (window.importInProgress) {
-      console.log('⏸️ Lagi import, skip update')
-      return
-    }
+      // ✅ CEK: Kalau loading overlay masih ada, SKIP!
+      const overlay = document.getElementById('import-loading-overlay')
+      if (overlay && overlay.style.display !== 'none') {
+        console.log('⏸️ Loading overlay active, skip update')
+        return
+      }
+      
       clearTimeout(updateTimeout)
       updateTimeout = setTimeout(() => {
         console.log('📡 Global updated')
