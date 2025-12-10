@@ -396,6 +396,41 @@ function getCurrentUserId() {
 loadGlobalEfficiency()
 
 // Expose functions globally
+// ============ PATCH: Ensure loadGlobalEfficiencyFromCloud exists ============
+if (typeof loadGlobalEfficiencyFromCloud === 'undefined') {
+  window.loadGlobalEfficiencyFromCloud = async function() {
+    if (!isCloudAvailable || !supabase) return null
+    try {
+      const result = await supabase.from('global_efficiency').select('*')
+      if (result.error) throw result.error
+      if (result.data && result.data.length > 0) {
+        const data = {}
+        result.data.forEach(r => {
+          data[r.date] = {
+            counterA: parseFloat(r.counter_a),
+            pickA: parseFloat(r.pick_a),
+            counterB: parseFloat(r.counter_b),
+            pickB: parseFloat(r.pick_b),
+            counterC: parseFloat(r.counter_c),
+            pickC: parseFloat(r.pick_c),
+            machinesRun: parseInt(r.machines_run),
+            shiftA: parseFloat(r.shift_a_eff),
+            shiftB: parseFloat(r.shift_b_eff),
+            shiftC: parseFloat(r.shift_c_eff),
+            global: parseFloat(r.global_eff),
+            editor: r.editor,
+            timestamp: r.timestamp
+          }
+        })
+        return data
+      }
+      return null
+    } catch (e) {
+      console.error('loadGlobalEfficiencyFromCloud error:', e)
+      return null
+    }
+  }
+}
 window.globalEfficiencySystem = {
   setGlobalEfficiency,
   getGlobalEfficiency,
