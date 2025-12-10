@@ -1,8 +1,7 @@
-// ============ EFFICIENCY PAGE LOGIC - FINAL FIX ============
-// Single load, no spam, smooth updates
+// ============ EFFICIENCY PAGE LOGIC - OPTIMIZED UNTUK HP ============
 
 let isLoading = false
-let hasLoadedOnce = false // ← NEW: Track if already loaded
+let hasLoadedOnce = false
 let lastLoadTime = 0
 const LOAD_COOLDOWN = 5000
 
@@ -27,10 +26,10 @@ const BLOCKS = {
 
 window.BLOCKS = BLOCKS
 
-function getMachineBlock(machineNum) {
-  for (const [blockName, ranges] of Object.entries(BLOCKS)) {
-    for (const range of ranges) {
-      if (machineNum >= range.start && machineNum <= range.end) {
+function getMachineBlock(machineNum){
+  for(const [blockName, ranges] of Object.entries(BLOCKS)){
+    for(const range of ranges){
+      if(machineNum >= range.start && machineNum <= range.end){
         return blockName
       }
     }
@@ -38,65 +37,7 @@ function getMachineBlock(machineNum) {
   return '?'
 }
 
-// ✅ THROTTLED LOAD - Only once per cooldown
-async function loadAllEfficiencyData(force = false) {
-  const now = Date.now()
-  
-  // Skip if already loaded (unless forced)
-  if (hasLoadedOnce && !force) {
-    console.log('ℹ️ Already loaded, skipping')
-    return false
-  }
-  
-  // Cooldown check
-  if (isLoading || (now - lastLoadTime < LOAD_COOLDOWN)) {
-    console.log('⏳ Cooldown active, skipping')
-    return false
-  }
-  
-  isLoading = true
-  lastLoadTime = now
-  
-  try {
-    console.log('Loading from cloud...')
-    
-    // Load machine efficiency
-    if (typeof loadEfficiencyFromCloud !== 'undefined') {
-      const cloudData = await loadEfficiencyFromCloud()
-      if (cloudData && Object.keys(cloudData).length > 0) {
-        console.log('✅ Loaded', Object.keys(cloudData).length, 'machines')
-        
-        if (window.efficiencySystem) {
-          window.efficiencySystem.efficiencyData = cloudData
-          localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
-        }
-      }
-    }
-    
-    // Load global efficiency
-    if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
-      const globalData = await loadGlobalEfficiencyFromCloud()
-      if (globalData && Object.keys(globalData).length > 0) {
-        console.log('✅ Loaded', Object.keys(globalData).length, 'dates')
-        
-        if (window.globalEfficiencySystem) {
-          window.globalEfficiencySystem.globalEfficiencyData = globalData
-          localStorage.setItem('global_efficiency_v1', JSON.stringify(globalData))
-        }
-      }
-    }
-    
-    hasLoadedOnce = true
-    return true
-  } catch (e) {
-    console.error('❌ Load error:', e.message)
-    return false
-  } finally {
-    isLoading = false
-  }
-}
-
-// ✅ RENDER FUNCTIONS (No API calls)
+// ============ OPTIMIZED: renderEfficiencyGrid ============
 function renderEfficiencyGrid() {
   const grid = document.getElementById('efficiency-grid')
   const dateFilter = document.getElementById('date-filter')
@@ -104,6 +45,8 @@ function renderEfficiencyGrid() {
   const sortFilter = document.getElementById('sort-filter')
   
   if (!grid) return
+  
+  console.log('🎨 Starting efficiency grid render...')
   
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
@@ -143,78 +86,91 @@ function renderEfficiencyGrid() {
   }
   
   grid.innerHTML = ''
+  const BATCH_SIZE = 20
   
-  machinesWithData.forEach(machine => {
-    const card = document.createElement('div')
-    card.className = 'efficiency-card'
+  function renderBatch(startIdx) {
+    const endIdx = Math.min(startIdx + BATCH_SIZE, machinesWithData.length)
     
-    let effClass = 'medium'
-    if (machine.global >= 80) effClass = 'high'
-    else if (machine.global < 60) effClass = 'low'
-    
-    const timestamp = machine.timestamp ? new Date(machine.timestamp).toLocaleString('id-ID') : 'Unknown'
-    
-    card.innerHTML = `
-      <div class="efficiency-card-header">
-        <div>
-          <div class="machine-number">Mesin ${machine.id}</div>
-          <div style="font-size: 11px; color: #9aa6c0;">Blok ${machine.block}</div>
-        </div>
-        <div class="efficiency-global ${effClass}">${machine.global}%</div>
-      </div>
+    for (let i = startIdx; i < endIdx; i++) {
+      const machine = machinesWithData[i]
       
-      <div class="shift-data">
-        <div class="shift-item">
-          <div class="shift-label">Shift A</div>
-          <div class="shift-value">${machine.shiftA}%</div>
-        </div>
-        <div class="shift-item">
-          <div class="shift-label">Shift B</div>
-          <div class="shift-value">${machine.shiftB}%</div>
-        </div>
-        <div class="shift-item">
-          <div class="shift-label">Shift C</div>
-          <div class="shift-value">${machine.shiftC}%</div>
-        </div>
-      </div>
+      const card = document.createElement('div')
+      card.className = 'efficiency-card'
       
-      <div style="margin-top: 12px; font-size: 10px; color: #9aa6c0;">
-        ${machine.editor || 'Unknown'} · ${timestamp}
-      </div>
-    `
+      let effClass = 'medium'
+      if (machine.global >= 80) effClass = 'high'
+      else if (machine.global < 60) effClass = 'low'
+      
+      const timestamp = machine.timestamp ? new Date(machine.timestamp).toLocaleString('id-ID') : 'Unknown'
+      
+      card.innerHTML = `
+        <div class="efficiency-card-header">
+          <div>
+            <div class="machine-number">Mesin ${machine.id}</div>
+            <div style="font-size: 11px; color: #9aa6c0;">Blok ${machine.block}</div>
+          </div>
+          <div class="efficiency-global ${effClass}">${machine.global}%</div>
+        </div>
+        
+        <div class="shift-data">
+          <div class="shift-item">
+            <div class="shift-label">Shift A</div>
+            <div class="shift-value">${machine.shiftA}%</div>
+          </div>
+          <div class="shift-item">
+            <div class="shift-label">Shift B</div>
+            <div class="shift-value">${machine.shiftB}%</div>
+          </div>
+          <div class="shift-item">
+            <div class="shift-label">Shift C</div>
+            <div class="shift-value">${machine.shiftC}%</div>
+          </div>
+        </div>
+        
+        <div style="margin-top: 12px; font-size: 10px; color: #9aa6c0;">
+          ${machine.editor || 'Unknown'} · ${timestamp}
+        </div>
+      `
+      
+      card.style.cursor = 'pointer'
+      card.addEventListener('click', () => {
+        if (window.efficiencySystem) {
+          window.efficiencySystem.openEfficiencyModal(machine.id)
+        }
+      })
+      
+      grid.appendChild(card)
+    }
     
-    card.style.cursor = 'pointer'
-    card.addEventListener('click', () => {
-      if (window.efficiencySystem) {
-        window.efficiencySystem.openEfficiencyModal(machine.id)
-      }
-    })
-    
-    grid.appendChild(card)
-  })
+    if (endIdx < machinesWithData.length) {
+      requestAnimationFrame(() => renderBatch(endIdx))
+    }
+  }
+  
+  renderBatch(0)
+  console.log('✅ Grid rendered')
 }
 
+// ============ OPTIMIZED: updateBlockSummary ============
 function updateBlockSummary() {
   const dateFilter = document.getElementById('date-filter')
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
   if (!window.efficiencySystem) return
   
-  const blockA = window.efficiencySystem.getBlockEfficiency('A', date)
-  const blockB = window.efficiencySystem.getBlockEfficiency('B', date)
-  const blockC = window.efficiencySystem.getBlockEfficiency('C', date)
-  const blockD = window.efficiencySystem.getBlockEfficiency('D', date)
-  
   const elA = document.getElementById('block-a-eff')
   const elB = document.getElementById('block-b-eff')
   const elC = document.getElementById('block-c-eff')
   const elD = document.getElementById('block-d-eff')
   
-  if (elA) elA.textContent = blockA + '%'
-  if (elB) elB.textContent = blockB + '%'
-  if (elC) elC.textContent = blockC + '%'
-  if (elD) elD.textContent = blockD + '%'
+  if (elA) elA.textContent = window.efficiencySystem.getBlockEfficiency('A', date) + '%'
+  if (elB) elB.textContent = window.efficiencySystem.getBlockEfficiency('B', date) + '%'
+  if (elC) elC.textContent = window.efficiencySystem.getBlockEfficiency('C', date) + '%'
+  if (elD) elD.textContent = window.efficiencySystem.getBlockEfficiency('D', date) + '%'
 }
+
+// ============ OPTIMIZED: updateTrendChart ============
+let trendChartLastData = null
 
 function updateTrendChart() {
   const canvas = document.getElementById('efficiency-trend-chart')
@@ -239,6 +195,12 @@ function updateTrendChart() {
     const globalData = window.globalEfficiencySystem.getGlobalEfficiency(dateStr)
     globalEfficiency.push(globalData ? globalData.global : 0)
   }
+  
+  const currentDataStr = JSON.stringify(globalEfficiency)
+  if (trendChartLastData === currentDataStr) {
+    return
+  }
+  trendChartLastData = currentDataStr
   
   if (window.trendChart) {
     window.trendChart.destroy()
@@ -303,6 +265,9 @@ function updateTrendChart() {
   })
 }
 
+// ============ OPTIMIZED: updateBlockChart ============
+let blockChartLastData = null
+
 function updateBlockChart() {
   const canvas = document.getElementById('block-efficiency-chart')
   if (!canvas) return
@@ -319,6 +284,12 @@ function updateBlockChart() {
     'Blok C': window.efficiencySystem.getBlockEfficiency('C', date),
     'Blok D': window.efficiencySystem.getBlockEfficiency('D', date)
   }
+  
+  const currentDataStr = JSON.stringify(blockEfficiency)
+  if (blockChartLastData === currentDataStr) {
+    return
+  }
+  blockChartLastData = currentDataStr
   
   if (window.blockChart) {
     window.blockChart.destroy()
@@ -379,48 +350,7 @@ function updateClock() {
   }
 }
 
-function showToast(text, type = '') {
-  let root = document.querySelector('.toast-root')
-  if (!root) {
-    root = document.createElement('div')
-    root.className = 'toast-root'
-    root.style.cssText = 'position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px'
-    document.body.appendChild(root)
-  }
-  
-  const toast = document.createElement('div')
-  toast.className = 'toast' + (type ? ' ' + type : '')
-  toast.style.cssText = `
-    padding:12px 20px;
-    background:rgba(15,23,42,0.95);
-    border:1px solid rgba(255,255,255,0.1);
-    border-radius:8px;
-    color:#fff;
-    font-size:13px;
-    box-shadow:0 10px 30px rgba(0,0,0,0.3);
-    animation: slideIn 0.3s ease-out;
-  `
-  
-  if (type === 'success') {
-    toast.style.borderColor = 'rgba(34,197,94,0.3)'
-    toast.style.background = 'rgba(34,197,94,0.1)'
-  } else if (type === 'warn') {
-    toast.style.borderColor = 'rgba(251,146,60,0.3)'
-    toast.style.background = 'rgba(251,146,60,0.1)'
-  }
-  
-  toast.textContent = text
-  root.appendChild(toast)
-  
-  setTimeout(() => {
-    toast.style.transition = 'opacity .3s, transform .3s'
-    toast.style.opacity = '0'
-    toast.style.transform = 'translateX(20px)'
-    setTimeout(() => toast.remove(), 350)
-  }, 3500)
-}
-
-// ✅ REAL-TIME with debounce
+// ============ REAL-TIME SETUP ============
 let updateTimeout = null
 
 function setupEfficiencyRealtime() {
@@ -433,40 +363,51 @@ function setupEfficiencyRealtime() {
   
   setupEfficiencyRealtimeListener(
     (newEffData) => {
-      // ✅ CEK: Kalau loading overlay masih ada, SKIP!
       const overlay = document.getElementById('import-loading-overlay')
       if (overlay && overlay.style.display !== 'none') {
-        console.log('⏸️ Loading overlay active, skip update')
+        console.log('⏸️ Import in progress, skip update')
+        return
+      }
+      
+      if (!newEffData || Object.keys(newEffData).length === 0) {
         return
       }
       
       clearTimeout(updateTimeout)
       updateTimeout = setTimeout(() => {
-        console.log('📡 Efficiency updated')
+        console.log('📡 Machine efficiency updated from cloud')
         
         if (window.efficiencySystem) {
           window.efficiencySystem.efficiencyData = newEffData
           localStorage.setItem('machine_efficiency_v2', JSON.stringify(newEffData))
           
           renderEfficiencyGrid()
-          updateBlockSummary()
-          updateBlockChart()
           
-          showToast('🔄 Data diperbarui', 'success')
+          setTimeout(() => {
+            updateBlockSummary()
+          }, 150)
+          
+          setTimeout(() => {
+            updateBlockChart()
+          }, 300)
+          
+          showToast('🔄 Efisiensi mesin diperbarui', 'success')
         }
       }, 2000)
     },
     (newGlobalData) => {
-      // ✅ CEK: Kalau loading overlay masih ada, SKIP!
       const overlay = document.getElementById('import-loading-overlay')
       if (overlay && overlay.style.display !== 'none') {
-        console.log('⏸️ Loading overlay active, skip update')
+        return
+      }
+      
+      if (!newGlobalData || Object.keys(newGlobalData).length === 0) {
         return
       }
       
       clearTimeout(updateTimeout)
       updateTimeout = setTimeout(() => {
-        console.log('📡 Global updated')
+        console.log('📡 Global efficiency updated from cloud')
         
         if (window.globalEfficiencySystem) {
           window.globalEfficiencySystem.globalEfficiencyData = newGlobalData
@@ -474,16 +415,16 @@ function setupEfficiencyRealtime() {
           
           updateTrendChart()
           
-          showToast('🔄 Global diperbarui', 'success')
+          showToast('🔄 Efisiensi global diperbarui', 'success')
         }
       }, 2000)
     }
   )
 }
 
-// ✅ LOADING OVERLAY dengan Progress Bar (OPTIMIZED - NO LAG)
+// ============ LOADING OVERLAY ============
 let lastProgressUpdate = 0
-const PROGRESS_UPDATE_THROTTLE = 100 // Update max 10x per detik
+const PROGRESS_UPDATE_THROTTLE = 100
 
 function showLoadingOverlay(message, showProgress = false) {
   let overlay = document.getElementById('import-loading-overlay')
@@ -524,10 +465,6 @@ function showLoadingOverlay(message, showProgress = false) {
         </div>
       </div>
       
-      <div id="loading-tip" style="font-size: 11px; color: #64748b; margin-top: 16px; text-align: center; max-width: 320px; line-height: 1.6;">
-        💡 Tip: Jangan tutup browser selama proses berlangsung
-      </div>
-      
       <style>
         @keyframes slide {
           0% { transform: translateX(-100%); }
@@ -535,13 +472,6 @@ function showLoadingOverlay(message, showProgress = false) {
         }
         #progress-container-indeterminate > div {
           animation: slide 1.5s ease-in-out infinite;
-        }
-        #loading-icon {
-          animation: bounce 1.5s ease-in-out infinite;
-        }
-        @keyframes bounce {
-          0%, 100% { transform: translateY(0) rotate(0deg); }
-          50% { transform: translateY(-10px) rotate(10deg); }
         }
       </style>
     `
@@ -565,49 +495,25 @@ function showLoadingOverlay(message, showProgress = false) {
 }
 
 function updateLoadingOverlay(message, submessage = '') {
-  const now = Date.now()
-  if (now - lastProgressUpdate < PROGRESS_UPDATE_THROTTLE) {
-    return
-  }
-  lastProgressUpdate = now
+  const messageEl = document.getElementById('loading-message')
+  const submessageEl = document.getElementById('loading-submessage')
   
-  requestAnimationFrame(() => {
-    const messageEl = document.getElementById('loading-message')
-    const submessageEl = document.getElementById('loading-submessage')
-    
-    if (messageEl) messageEl.textContent = message
-    if (submessageEl) submessageEl.textContent = submessage || 'Mohon tunggu...'
-  })
+  if (messageEl) messageEl.textContent = message
+  if (submessageEl) submessageEl.textContent = submessage || 'Mohon tunggu...'
 }
 
 function updateLoadingProgress(current, total) {
-  const now = Date.now()
-  if (now - lastProgressUpdate < PROGRESS_UPDATE_THROTTLE) {
-    return
-  }
-  lastProgressUpdate = now
+  const progressBar = document.getElementById('progress-bar')
+  const progressText = document.getElementById('progress-text')
+  const progressCount = document.getElementById('progress-count')
   
-  requestAnimationFrame(() => {
-    const progressBar = document.getElementById('progress-bar')
-    const progressText = document.getElementById('progress-text')
-    const progressCount = document.getElementById('progress-count')
-    
-    if (!progressBar || !progressText || !progressCount) return
-    
-    const percentage = Math.round((current / total) * 100)
-    
-    progressBar.style.width = percentage + '%'
-    progressText.textContent = percentage + '%'
-    progressCount.textContent = `${current} / ${total}`
-    
-    const icon = document.getElementById('loading-icon')
-    if (icon) {
-      if (percentage < 30) icon.textContent = '📥'
-      else if (percentage < 60) icon.textContent = '⚙️'
-      else if (percentage < 90) icon.textContent = '☁️'
-      else icon.textContent = '✨'
-    }
-  })
+  if (!progressBar || !progressText || !progressCount) return
+  
+  const percentage = Math.round((current / total) * 100)
+  
+  progressBar.style.width = percentage + '%'
+  progressText.textContent = percentage + '%'
+  progressCount.textContent = `${current} / ${total}`
 }
 
 function hideLoadingOverlay() {
@@ -622,50 +528,7 @@ function hideLoadingOverlay() {
   }
 }
 
-async function progressiveRender() {
-  console.log('🎨 Progressive render starting...')
-  
-  showLoadingOverlay('🎨 Rendering UI...', true)
-  
-  const steps = [
-    { name: 'Block Summary', fn: updateBlockSummary },
-    { name: 'Trend Chart', fn: updateTrendChart },
-    { name: 'Block Chart', fn: updateBlockChart },
-    { name: 'Efficiency Grid', fn: renderEfficiencyGrid }
-  ]
-  
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i]
-    
-    updateLoadingOverlay(
-      `🎨 Rendering ${step.name}...`,
-      `Step ${i + 1}/${steps.length}`
-    )
-    
-    updateLoadingProgress(i, steps.length)
-    
-    console.log(`🎨 Rendering ${step.name}...`)
-    
-    await new Promise(resolve => requestAnimationFrame(resolve))
-    
-    try {
-      step.fn()
-    } catch (e) {
-      console.error(`❌ Error rendering ${step.name}:`, e)
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 50))
-  }
-  
-  updateLoadingProgress(steps.length, steps.length)
-  
-  await new Promise(resolve => setTimeout(resolve, 200))
-  hideLoadingOverlay()
-  
-  console.log('✅ Progressive render complete')
-}
-
-// ✅ EVENT LISTENERS
+// ============ EVENT LISTENERS ============
 function attachEventListeners() {
   const dateFilter = document.getElementById('date-filter')
   if (dateFilter) {
@@ -706,53 +569,49 @@ function attachEventListeners() {
     machineFileInput.addEventListener('change', async (e) => {
       if (e.target.files[0]) {
         try {
-          if (!window.efficiencySystem) throw new Error('System not loaded')
-          
-          // ✅ DISABLE UI selama import
           const importBtn = document.getElementById('import-efficiency')
           const syncBtn = document.getElementById('manual-sync-btn')
           if (importBtn) importBtn.disabled = true
           if (syncBtn) syncBtn.disabled = true
           
-          // ✅ STEP 1: Show loading (indeterminate)
           showLoadingOverlay('📂 Reading Excel file...')
-          
-          // ✅ Small delay for visual feedback
           await new Promise(resolve => setTimeout(resolve, 300))
           
-          // ✅ STEP 2: Import Excel (background process)
           updateLoadingOverlay('📥 Importing data...', 'Processing Excel sheets...')
           const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
           
-          // ✅ STEP 3: Cloud sync notification (happens in background)
           updateLoadingOverlay('☁️ Syncing to cloud...', 'Please wait...')
-          showLoadingOverlay('☁️ Syncing to cloud...', true) // Enable progress bar
-          
-          // Wait for cloud sync (progress updates automatically via supabase_sync)
           await new Promise(resolve => setTimeout(resolve, 1500))
           
-          // ✅ STEP 4: Success message
-          updateLoadingOverlay('✅ Import Complete!', `${result.imported} records saved`)
-          await new Promise(resolve => setTimeout(resolve, 800))
-          
-          // ✅ STEP 5: Progressive render (smooth, no lag)
-          await progressiveRender()
-          
           hideLoadingOverlay()
-          showToast(`✅ ${result.imported} records imported & synced!`, 'success')
           
-          // ✅ Re-enable UI
+          setTimeout(() => {
+            renderEfficiencyGrid()
+          }, 100)
+          
+          setTimeout(() => {
+            updateBlockSummary()
+          }, 250)
+          
+          setTimeout(() => {
+            updateBlockChart()
+          }, 400)
+          
+          setTimeout(() => {
+            updateTrendChart()
+          }, 550)
+          
+          showToast(`✅ ${result.imported} records imported!`, 'success')
+          
           if (importBtn) importBtn.disabled = false
           if (syncBtn) syncBtn.disabled = false
           
           e.target.value = ''
-          
         } catch (error) {
           hideLoadingOverlay()
           console.error('Import error:', error)
           showToast('❌ Import failed: ' + error.message, 'warn')
           
-          // Re-enable UI on error
           const importBtn = document.getElementById('import-efficiency')
           const syncBtn = document.getElementById('manual-sync-btn')
           if (importBtn) importBtn.disabled = false
@@ -799,53 +658,38 @@ function attachEventListeners() {
   const manualSyncBtn = document.getElementById('manual-sync-btn')
   if (manualSyncBtn) {
     manualSyncBtn.addEventListener('click', async () => {
-      if (isLoading) {
-        showToast('⏳ Masih loading', 'warn')
-        return
-      }
-      
       manualSyncBtn.disabled = true
       manualSyncBtn.innerHTML = '🔄 Syncing...'
       
       try {
-        // ✅ Show loading overlay
         showLoadingOverlay('🔄 Syncing from cloud...', true)
         
-        // ✅ Step 1: Load efficiency data
-        updateLoadingOverlay('📥 Loading machine efficiency...', 'Step 1/3')
-        updateLoadingProgress(1, 3)
+        updateLoadingOverlay('📥 Loading data...', 'Step 1/2')
+        updateLoadingProgress(1, 2)
         await new Promise(resolve => setTimeout(resolve, 500))
         
         const success = await loadAllEfficiencyData(true)
         
         if (success) {
-          // ✅ Step 2: Load global data
-          updateLoadingOverlay('📥 Loading global efficiency...', 'Step 2/3')
-          updateLoadingProgress(2, 3)
+          updateLoadingOverlay('🎨 Updating UI...', 'Step 2/2')
+          updateLoadingProgress(2, 2)
           await new Promise(resolve => setTimeout(resolve, 500))
           
-          // ✅ Step 3: Update UI
-          updateLoadingOverlay('🎨 Updating UI...', 'Step 3/3')
-          updateLoadingProgress(3, 3)
-          await new Promise(resolve => setTimeout(resolve, 500))
-          
-          // Progressive render
-          await progressiveRender()
-          
-          // ✅ Show success info
-          const machineCount = Object.keys(window.efficiencySystem?.efficiencyData || {}).length
-          const dateCount = Object.keys(window.globalEfficiencySystem?.globalEfficiencyData || {}).length
+          renderEfficiencyGrid()
+          updateBlockSummary()
+          updateTrendChart()
+          updateBlockChart()
           
           hideLoadingOverlay()
-          showToast(`✅ Synced: ${machineCount} machines, ${dateCount} dates`, 'success')
+          showToast('✅ Data synced successfully', 'success')
         } else {
           hideLoadingOverlay()
-          showToast('❌ Sync failed - check console', 'warn')
+          showToast('❌ Sync failed', 'warn')
         }
       } catch (error) {
         hideLoadingOverlay()
         console.error('Sync error:', error)
-        showToast('❌ Sync error: ' + error.message, 'warn')
+        showToast('❌ Error: ' + error.message, 'warn')
       } finally {
         manualSyncBtn.disabled = false
         manualSyncBtn.innerHTML = '🔄 Sync Data'
@@ -854,11 +698,98 @@ function attachEventListeners() {
   }
 }
 
-// ✅ INITIALIZATION - Load ONCE
+// ============ LOAD FROM CLOUD ============
+async function loadAllEfficiencyData(force = false) {
+  const now = Date.now()
+  
+  if (hasLoadedOnce && !force) {
+    return false
+  }
+  
+  if (isLoading || (now - lastLoadTime < LOAD_COOLDOWN)) {
+    return false
+  }
+  
+  isLoading = true
+  lastLoadTime = now
+  
+  try {
+    if (typeof loadEfficiencyFromCloud !== 'undefined') {
+      const cloudData = await loadEfficiencyFromCloud()
+      if (cloudData && Object.keys(cloudData).length > 0) {
+        if (window.efficiencySystem) {
+          window.efficiencySystem.efficiencyData = cloudData
+          localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
+        }
+      }
+    }
+    
+    if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
+      const globalData = await loadGlobalEfficiencyFromCloud()
+      if (globalData && Object.keys(globalData).length > 0) {
+        if (window.globalEfficiencySystem) {
+          window.globalEfficiencySystem.globalEfficiencyData = globalData
+          localStorage.setItem('global_efficiency_v1', JSON.stringify(globalData))
+        }
+      }
+    }
+    
+    hasLoadedOnce = true
+    return true
+  } catch (e) {
+    console.error('Load error:', e)
+    return false
+  } finally {
+    isLoading = false
+  }
+}
+
+// ============ TOAST NOTIFICATIONS ============
+function showToast(text, type = '') {
+  let root = document.querySelector('.toast-root')
+  if (!root) {
+    root = document.createElement('div')
+    root.className = 'toast-root'
+    root.style.cssText = 'position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px'
+    document.body.appendChild(root)
+  }
+  
+  const toast = document.createElement('div')
+  toast.className = 'toast' + (type ? ' ' + type : '')
+  toast.style.cssText = `
+    padding:12px 20px;
+    background:rgba(15,23,42,0.95);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:8px;
+    color:#fff;
+    font-size:13px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.3);
+    animation: slideIn 0.3s ease-out;
+  `
+  
+  if (type === 'success') {
+    toast.style.borderColor = 'rgba(34,197,94,0.3)'
+    toast.style.background = 'rgba(34,197,94,0.1)'
+  } else if (type === 'warn') {
+    toast.style.borderColor = 'rgba(251,146,60,0.3)'
+    toast.style.background = 'rgba(251,146,60,0.1)'
+  }
+  
+  toast.textContent = text
+  root.appendChild(toast)
+  
+  setTimeout(() => {
+    toast.style.transition = 'opacity .3s, transform .3s'
+    toast.style.opacity = '0'
+    toast.style.transform = 'translateX(20px)'
+    setTimeout(() => toast.remove(), 350)
+  }, 3500)
+}
+
+// ============ INITIALIZATION ============
 async function initialize() {
   console.log('🚀 Initializing...')
   
-  // Wait for systems
   let attempts = 0
   while (attempts < 10) {
     if (window.efficiencySystem && window.globalEfficiencySystem) {
@@ -874,22 +805,16 @@ async function initialize() {
     return
   }
   
-  // ✅ STEP 1: Setup Supabase (if available)
   if (typeof supabaseInit !== 'undefined') {
     const ready = await supabaseInit()
     window.isCloudAvailable = ready
-    console.log('☁️ Cloud:', ready ? 'Ready' : 'Offline')
     
     if (ready) {
-      // ✅ STEP 2: Load data ONCE
       await loadAllEfficiencyData()
-      
-      // ✅ STEP 3: Setup real-time listener
       setupEfficiencyRealtime()
     }
   }
   
-  // ✅ STEP 4: Render UI
   attachEventListeners()
   renderEfficiencyGrid()
   updateBlockSummary()
@@ -897,10 +822,48 @@ async function initialize() {
   updateBlockChart()
   updateClock()
   
+  if (window.efficiencySystem && window.efficiencySystem.setupEfficiencyModalListeners) {
+    window.efficiencySystem.setupEfficiencyModalListeners()
+  }
+  
+  // ✅ PERIODIC SYNC SETIAP 30 DETIK
+  if (window.isCloudAvailable) {
+    console.log('⏱️ Periodic sync active...')
+    
+    setInterval(async () => {
+      try {
+        if (typeof loadEfficiencyFromCloud !== 'undefined') {
+          const cloudEff = await loadEfficiencyFromCloud()
+          if (cloudEff && Object.keys(cloudEff).length > Object.keys(window.efficiencySystem?.efficiencyData || {}).length) {
+            console.log('🔄 Periodic: New machine data found')
+            window.efficiencySystem.efficiencyData = cloudEff
+            localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudEff))
+            
+            renderEfficiencyGrid()
+            updateBlockSummary()
+            updateBlockChart()
+          }
+        }
+        
+        if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
+          const cloudGlobal = await loadGlobalEfficiencyFromCloud()
+          if (cloudGlobal && Object.keys(cloudGlobal).length > Object.keys(window.globalEfficiencySystem?.globalEfficiencyData || {}).length) {
+            console.log('🔄 Periodic: New global data found')
+            window.globalEfficiencySystem.globalEfficiencyData = cloudGlobal
+            localStorage.setItem('global_efficiency_v1', JSON.stringify(cloudGlobal))
+            
+            updateTrendChart()
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Periodic sync error:', e)
+      }
+    }, 30000)
+  }
+  
   console.log('✅ Initialized')
 }
 
-// Run once
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initialize)
 } else {
@@ -917,4 +880,4 @@ window.efficiencyPage = {
   loadAllEfficiencyData
 }
 
-console.log('✅ Efficiency page loaded (FINAL FIX)')
+console.log('✅ Efficiency page loaded')
