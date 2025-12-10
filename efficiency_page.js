@@ -858,7 +858,7 @@ async function initialize() {
       } catch (e) {
         console.warn('⚠️ Periodic sync error:', e)
       }
-    }, 30000)
+    }, 10000)
   }
   
   console.log('✅ Initialized')
