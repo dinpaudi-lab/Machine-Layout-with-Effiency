@@ -767,28 +767,13 @@ if (globalFileInput) {
     if (e.target.files[0]) {
       try {
         if (!window.globalEfficiencySystem) throw new Error('Global system not loaded')
-        
-        // 🚫 Flag: lagi import global
         window.importInProgress = true
-        
-        // 🔄 Loading message
         showToast('📥 Importing global data...', 'success')
-        
-        // 📂 Import process
         const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
-        
-        // ✅ Import done
         window.importInProgress = false
-        
-        // 🎉 Success message
         showToast(`✅ ${result.imported} global records imported!`, 'success')
-        
-        // 🎨 Render UI SEKALI
         updateTrendChart()
-        
-        // 🧹 Reset
         e.target.value = ''
-        
       } catch (error) {
         window.importInProgress = false
         console.error('Import error:', error)
@@ -797,7 +782,8 @@ if (globalFileInput) {
     }
   })
 }
-  
+
+const exportBtn = document.getElementById('export-efficiency')
   const exportBtn = document.getElementById('export-efficiency')
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
@@ -866,7 +852,6 @@ if (globalFileInput) {
       }
     })
   }
-
 // ✅ INITIALIZATION - Load ONCE
 async function initialize() {
   console.log('🚀 Initializing...')
