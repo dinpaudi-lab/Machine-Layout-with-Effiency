@@ -783,7 +783,6 @@ if (globalFileInput) {
   })
 }
 
-const exportBtn = document.getElementById('export-efficiency')
   const exportBtn = document.getElementById('export-efficiency')
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
