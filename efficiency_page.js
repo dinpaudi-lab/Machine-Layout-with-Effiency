@@ -480,6 +480,7 @@ function setupEfficiencyRealtime() {
     }
   )
 }
+
 // ✅ LOADING OVERLAY dengan Progress Bar (OPTIMIZED - NO LAG)
 let lastProgressUpdate = 0
 const PROGRESS_UPDATE_THROTTLE = 100 // Update max 10x per detik
@@ -700,88 +701,88 @@ function attachEventListeners() {
     })
   }
 
- const machineFileInput = document.getElementById('efficiency-machine-file-input')
-if (machineFileInput) {
-  machineFileInput.addEventListener('change', async (e) => {
-    if (e.target.files[0]) {
-      try {
-        if (!window.efficiencySystem) throw new Error('System not loaded')
-        
-        // ✅ DISABLE UI selama import
-        const importBtn = document.getElementById('import-efficiency')
-        const syncBtn = document.getElementById('manual-sync-btn')
-        if (importBtn) importBtn.disabled = true
-        if (syncBtn) syncBtn.disabled = true
-        
-        // ✅ STEP 1: Show loading (indeterminate)
-        showLoadingOverlay('📂 Reading Excel file...')
-        
-        // ✅ Small delay for visual feedback
-        await new Promise(resolve => setTimeout(resolve, 300))
-        
-        // ✅ STEP 2: Import Excel (background process)
-        updateLoadingOverlay('📥 Importing data...', 'Processing Excel sheets...')
-        const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
-        
-        // ✅ STEP 3: Cloud sync notification (happens in background)
-        updateLoadingOverlay('☁️ Syncing to cloud...', 'Please wait...')
-        showLoadingOverlay('☁️ Syncing to cloud...', true) // Enable progress bar
-        
-        // Wait for cloud sync (progress updates automatically via supabase_sync)
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        
-        // ✅ STEP 4: Success message
-        updateLoadingOverlay('✅ Import Complete!', `${result.imported} records saved`)
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
-        // ✅ STEP 5: Progressive render (smooth, no lag)
-        await progressiveRender()
-        
-        hideLoadingOverlay()
-        showToast(`✅ ${result.imported} records imported & synced!`, 'success')
-        
-        // ✅ Re-enable UI
-        if (importBtn) importBtn.disabled = false
-        if (syncBtn) syncBtn.disabled = false
-        
-        e.target.value = ''
-        
-      } catch (error) {
-        hideLoadingOverlay()
-        console.error('Import error:', error)
-        showToast('❌ Import failed: ' + error.message, 'warn')
-        
-        // Re-enable UI on error
-        const importBtn = document.getElementById('import-efficiency')
-        const syncBtn = document.getElementById('manual-sync-btn')
-        if (importBtn) importBtn.disabled = false
-        if (syncBtn) syncBtn.disabled = false
+  const machineFileInput = document.getElementById('efficiency-machine-file-input')
+  if (machineFileInput) {
+    machineFileInput.addEventListener('change', async (e) => {
+      if (e.target.files[0]) {
+        try {
+          if (!window.efficiencySystem) throw new Error('System not loaded')
+          
+          // ✅ DISABLE UI selama import
+          const importBtn = document.getElementById('import-efficiency')
+          const syncBtn = document.getElementById('manual-sync-btn')
+          if (importBtn) importBtn.disabled = true
+          if (syncBtn) syncBtn.disabled = true
+          
+          // ✅ STEP 1: Show loading (indeterminate)
+          showLoadingOverlay('📂 Reading Excel file...')
+          
+          // ✅ Small delay for visual feedback
+          await new Promise(resolve => setTimeout(resolve, 300))
+          
+          // ✅ STEP 2: Import Excel (background process)
+          updateLoadingOverlay('📥 Importing data...', 'Processing Excel sheets...')
+          const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
+          
+          // ✅ STEP 3: Cloud sync notification (happens in background)
+          updateLoadingOverlay('☁️ Syncing to cloud...', 'Please wait...')
+          showLoadingOverlay('☁️ Syncing to cloud...', true) // Enable progress bar
+          
+          // Wait for cloud sync (progress updates automatically via supabase_sync)
+          await new Promise(resolve => setTimeout(resolve, 1500))
+          
+          // ✅ STEP 4: Success message
+          updateLoadingOverlay('✅ Import Complete!', `${result.imported} records saved`)
+          await new Promise(resolve => setTimeout(resolve, 800))
+          
+          // ✅ STEP 5: Progressive render (smooth, no lag)
+          await progressiveRender()
+          
+          hideLoadingOverlay()
+          showToast(`✅ ${result.imported} records imported & synced!`, 'success')
+          
+          // ✅ Re-enable UI
+          if (importBtn) importBtn.disabled = false
+          if (syncBtn) syncBtn.disabled = false
+          
+          e.target.value = ''
+          
+        } catch (error) {
+          hideLoadingOverlay()
+          console.error('Import error:', error)
+          showToast('❌ Import failed: ' + error.message, 'warn')
+          
+          // Re-enable UI on error
+          const importBtn = document.getElementById('import-efficiency')
+          const syncBtn = document.getElementById('manual-sync-btn')
+          if (importBtn) importBtn.disabled = false
+          if (syncBtn) syncBtn.disabled = false
+        }
       }
-    }
-  })
-}
+    })
+  }
 
   const globalFileInput = document.getElementById('efficiency-global-file-input')
-if (globalFileInput) {
-  globalFileInput.addEventListener('change', async (e) => {
-    if (e.target.files[0]) {
-      try {
-        if (!window.globalEfficiencySystem) throw new Error('Global system not loaded')
-        window.importInProgress = true
-        showToast('📥 Importing global data...', 'success')
-        const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
-        window.importInProgress = false
-        showToast(`✅ ${result.imported} global records imported!`, 'success')
-        updateTrendChart()
-        e.target.value = ''
-      } catch (error) {
-        window.importInProgress = false
-        console.error('Import error:', error)
-        showToast('❌ Import failed: ' + error.message, 'warn')
+  if (globalFileInput) {
+    globalFileInput.addEventListener('change', async (e) => {
+      if (e.target.files[0]) {
+        try {
+          if (!window.globalEfficiencySystem) throw new Error('Global system not loaded')
+          window.importInProgress = true
+          showToast('📥 Importing global data...', 'success')
+          const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
+          window.importInProgress = false
+          showToast(`✅ ${result.imported} global records imported!`, 'success')
+          updateTrendChart()
+          e.target.value = ''
+        } catch (error) {
+          window.importInProgress = false
+          console.error('Import error:', error)
+          showToast('❌ Import failed: ' + error.message, 'warn')
+        }
       }
-    }
-  })
-}
+    })
+  }
 
   const exportBtn = document.getElementById('export-efficiency')
   if (exportBtn) {
@@ -851,6 +852,8 @@ if (globalFileInput) {
       }
     })
   }
+}
+
 // ✅ INITIALIZATION - Load ONCE
 async function initialize() {
   console.log('🚀 Initializing...')
