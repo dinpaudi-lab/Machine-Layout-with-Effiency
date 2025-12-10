@@ -595,6 +595,37 @@ window.addEventListener('online', () => {
     syncPendingEfficiency()
   }
 })
+
+// ============ PATCH: Ensure loadEfficiencyFromCloud exists ============
+if (typeof loadEfficiencyFromCloud === 'undefined') {
+  window.loadEfficiencyFromCloud = async function() {
+    if (!isCloudAvailable || !supabase) return null
+    try {
+      const result = await supabase.from('efficiency').select('*')
+      if (result.error) throw result.error
+      if (result.data && result.data.length > 0) {
+        const data = {}
+        result.data.forEach(eff => {
+          if (!data[eff.machine_id]) data[eff.machine_id] = {}
+          data[eff.machine_id][eff.date] = {
+            shiftA: parseFloat(eff.shift_a),
+            shiftB: parseFloat(eff.shift_b),
+            shiftC: parseFloat(eff.shift_c),
+            global: parseFloat(eff.global_efficiency),
+            editor: eff.editor,
+            timestamp: eff.timestamp
+          }
+        })
+        console.log('✅ loadEfficiencyFromCloud: Got', Object.keys(data).length, 'machines')
+        return data
+      }
+      return null
+    } catch (e) {
+      console.error('loadEfficiencyFromCloud error:', e)
+      return null
+    }
+  }
+}
 window.supabaseInit = supabaseInit;
 window.supabaseSignIn = supabaseSignIn;
 window.supabaseSignOut = supabaseSignOut;
