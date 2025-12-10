@@ -1,9 +1,10 @@
-// ============ EFFICIENCY PAGE LOGIC - OPTIMIZED UNTUK HP ============
+// ============ EFFICIENCY PAGE LOGIC - WITH SMART CACHE ============
+// File: efficiency_page.js (REVISI TOTAL)
 
 let isLoading = false
 let hasLoadedOnce = false
 let lastLoadTime = 0
-const LOAD_COOLDOWN = 5000
+const LOAD_COOLDOWN = 3000
 
 const BLOCKS = {
   A: [{start: 1, end: 160}],
@@ -26,18 +27,256 @@ const BLOCKS = {
 
 window.BLOCKS = BLOCKS
 
-function getMachineBlock(machineNum){
-  for(const [blockName, ranges] of Object.entries(BLOCKS)){
-    for(const range of ranges){
-      if(machineNum >= range.start && machineNum <= range.end){
-        return blockName
-      }
-    }
-  }
-  return '?'
+// ✅ DETEKSI DEVICE
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 }
 
-// ============ OPTIMIZED: renderEfficiencyGrid ============
+// ✅ LAZY LOAD DATE DATA (global function)
+window.lazyLoadDateData = async function(date, force = false) {
+  // Skip jika sudah ada di cache (kecuali force)
+  if (window.dateCache && window.dateCache.hasDate(date) && !force) {
+    console.log(`📅 ${date} already in cache, skipping`)
+    return true
+  }
+  
+  console.log(`📅 Loading data for: ${date}`)
+  
+  try {
+    if (typeof supabase !== 'undefined' && window.isCloudAvailable) {
+      const result = await supabase
+        .from('efficiency')
+        .select('*')
+        .eq('date', date)
+      
+      if (result.data && result.data.length > 0) {
+        const newData = {}
+        
+        result.data.forEach(eff => {
+          if (!newData[eff.machine_id]) newData[eff.machine_id] = {}
+          newData[eff.machine_id][date] = {
+            shiftA: parseFloat(eff.shift_a),
+            shiftB: parseFloat(eff.shift_b),
+            shiftC: parseFloat(eff.shift_c),
+            global: parseFloat(eff.global_efficiency),
+            editor: eff.editor,
+            timestamp: eff.timestamp
+          }
+        })
+        
+        // Merge dengan existing data
+        mergeDataIntoGlobal(newData)
+        
+        // Mark date as cached
+        if (window.dateCache) {
+          window.dateCache.markDateAsCached(date)
+        }
+        
+        console.log(`✅ Loaded ${result.data.length} records for ${date}`)
+        return true
+      } else {
+        console.log(`📭 No data found for ${date}`)
+        // Still mark as cached (even if empty) to avoid re-checking
+        if (window.dateCache) {
+          window.dateCache.markDateAsCached(date)
+        }
+        return false
+      }
+    }
+    
+    return false
+  } catch (e) {
+    console.error(`❌ Load error for ${date}:`, e)
+    return false
+  }
+}
+
+// ✅ MERGE DATA HELPER
+function mergeDataIntoGlobal(newData) {
+  if (!window.efficiencySystem) return
+  
+  const existing = window.efficiencySystem.efficiencyData || {}
+  
+  Object.keys(newData).forEach(machineId => {
+    if (!existing[machineId]) {
+      existing[machineId] = newData[machineId]
+    } else {
+      // Merge dates
+      Object.keys(newData[machineId]).forEach(date => {
+        existing[machineId][date] = newData[machineId][date]
+      })
+    }
+  })
+  
+  window.efficiencySystem.efficiencyData = existing
+}
+
+// ✅ LOAD ALL EFFICIENCY DATA
+async function loadAllEfficiencyData(force = false) {
+  const now = Date.now()
+  
+  if (isLoading || (now - lastLoadTime < LOAD_COOLDOWN && !force)) {
+    return false
+  }
+  
+  isLoading = true
+  lastLoadTime = now
+  
+  try {
+    console.log('📱 Loading data...')
+    
+    // Load machine efficiency
+    if (typeof loadEfficiencyFromCloud !== 'undefined') {
+      const cloudData = await loadEfficiencyFromCloud()
+      if (cloudData && Object.keys(cloudData).length > 0) {
+        window.efficiencySystem.efficiencyData = cloudData
+        localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
+        console.log('✅ Loaded', Object.keys(cloudData).length, 'machines')
+      }
+    }
+    
+    // Load global efficiency
+    if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
+      const globalData = await loadGlobalEfficiencyFromCloud()
+      if (globalData && Object.keys(globalData).length > 0) {
+        window.globalEfficiencySystem.globalEfficiencyData = globalData
+        localStorage.setItem('global_efficiency_v1', JSON.stringify(globalData))
+      }
+    }
+    
+    hasLoadedOnce = true
+    return true
+    
+  } catch (e) {
+    console.error('❌ Load error:', e.message)
+    return false
+  } finally {
+    isLoading = false
+  }
+}
+
+// ✅ SETUP SMART DATE FILTER
+function setupSmartDateFilter() {
+  const dateFilter = document.getElementById('date-filter')
+  if (!dateFilter) return
+  
+  // Set max date to today
+  const today = new Date().toISOString().split('T')[0]
+  dateFilter.max = today
+  dateFilter.value = today
+  
+  // Load today's data on init
+  window.lazyLoadDateData(today)
+    .then(() => {
+      // Prefetch dates around today
+      if (window.dateCache) {
+        const datesToPrefetch = window.dateCache.getDatesToPrefetch(today)
+        window.dateCache.prefetchDates(datesToPrefetch)
+      }
+    })
+  
+  // Change event dengan cache management
+  dateFilter.addEventListener('change', async () => {
+    const selectedDate = dateFilter.value
+    
+    if (!selectedDate) return
+    
+    // Update UI immediately dengan data yang ada
+    renderEfficiencyGrid()
+    updateBlockSummary()
+    updateBlockChart()
+    
+    // Check if we need to load data for this date
+    if (!window.dateCache || !window.dateCache.hasDate(selectedDate)) {
+      showToast(`📥 Loading data for ${selectedDate}...`, 'success')
+      
+      // Load data untuk tanggal yang dipilih
+      const success = await window.lazyLoadDateData(selectedDate)
+      
+      if (success) {
+        // Update UI dengan data baru
+        renderEfficiencyGrid()
+        updateBlockSummary()
+        updateBlockChart()
+        showToast(`✅ Data untuk ${selectedDate} loaded`, 'success')
+      } else {
+        showToast(`📭 Tidak ada data untuk ${selectedDate}`, 'warn')
+      }
+      
+      // Prefetch dates around the selected date
+      if (window.dateCache) {
+        const datesToPrefetch = window.dateCache.getDatesToPrefetch(selectedDate)
+        window.dateCache.prefetchDates(datesToPrefetch)
+      }
+    } else {
+      console.log(`✅ ${selectedDate} already cached`)
+    }
+  })
+  
+  // Add date navigation buttons
+  addDateNavigationButtons(dateFilter)
+}
+
+// ✅ DATE NAVIGATION BUTTONS
+function addDateNavigationButtons(dateFilter) {
+  const filterBar = document.querySelector('.filter-bar')
+  if (!filterBar) return
+  
+  // Cek apakah buttons sudah ada
+  if (document.getElementById('date-nav-container')) return
+  
+  const navContainer = document.createElement('div')
+  navContainer.id = 'date-nav-container'
+  navContainer.style.cssText = `
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  `
+  
+  navContainer.innerHTML = `
+    <button id="prev-date-btn" class="small-btn" style="padding: 4px 8px;">◀</button>
+    <button id="next-date-btn" class="small-btn" style="padding: 4px 8px;">▶</button>
+    <button id="today-btn" class="small-btn" style="padding: 4px 8px;">Hari Ini</button>
+  `
+  
+  // Insert setelah filter bar
+  filterBar.appendChild(navContainer)
+  
+  // Event listeners
+  document.getElementById('prev-date-btn').addEventListener('click', () => {
+    navigateDate(-1)
+  })
+  
+  document.getElementById('next-date-btn').addEventListener('click', () => {
+    navigateDate(1)
+  })
+  
+  document.getElementById('today-btn').addEventListener('click', () => {
+    const today = new Date().toISOString().split('T')[0]
+    dateFilter.value = today
+    dateFilter.dispatchEvent(new Event('change'))
+  })
+}
+
+// ✅ DATE NAVIGATION
+function navigateDate(delta) {
+  const dateFilter = document.getElementById('date-filter')
+  if (!dateFilter || !dateFilter.value) return
+  
+  const currentDate = new Date(dateFilter.value)
+  currentDate.setDate(currentDate.getDate() + delta)
+  
+  const newDate = currentDate.toISOString().split('T')[0]
+  const today = new Date().toISOString().split('T')[0]
+  
+  // Jangan navigate ke masa depan
+  if (newDate > today) return
+  
+  dateFilter.value = newDate
+  dateFilter.dispatchEvent(new Event('change'))
+}
+
+// ✅ RENDER EFFICIENCY GRID
 function renderEfficiencyGrid() {
   const grid = document.getElementById('efficiency-grid')
   const dateFilter = document.getElementById('date-filter')
@@ -46,32 +285,56 @@ function renderEfficiencyGrid() {
   
   if (!grid) return
   
-  console.log('🎨 Starting efficiency grid render...')
-  
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
   if (!window.efficiencySystem) {
-    grid.innerHTML = '<div class="no-data">❌ System not loaded</div>'
+    grid.innerHTML = '<div class="no-data">❌ System belum di-load</div>'
     return
   }
   
+  // Check cache status
+  const isCached = window.dateCache ? window.dateCache.hasDate(date) : false
+  
   const machinesWithData = []
   
-  for (let i = 1; i <= 640; i++) {
-    const eff = window.efficiencySystem.getMachineEfficiency(i, date)
-    const block = getMachineBlock(i)
+  // Collect data untuk date tertentu
+  Object.keys(window.efficiencySystem.efficiencyData || {}).forEach(machineId => {
+    const machineData = window.efficiencySystem.efficiencyData[machineId]
+    if (!machineData || !machineData[date]) return
     
-    if (blockFilter && blockFilter.value && block !== blockFilter.value) continue
+    const eff = machineData[date]
+    const block = getMachineBlock(parseInt(machineId))
+    
+    if (blockFilter && blockFilter.value && block !== blockFilter.value) return
     
     if (eff && eff.global > 0) {
       machinesWithData.push({
-        id: i,
+        id: parseInt(machineId),
         block: block,
         ...eff
       })
     }
+  })
+  
+  if (machinesWithData.length === 0) {
+    grid.innerHTML = `
+      <div class="no-data">
+        <div style="margin-bottom: 12px;">
+          ${isCached ? '📭' : '⏳'} Tidak ada data untuk ${date}
+        </div>
+        
+        ${!isCached ? `
+          <button onclick="window.loadDateData('${date}')" 
+                  class="chip" style="margin: 4px; background: rgba(52, 211, 153, 0.2);">
+            📥 Load Data
+          </button>
+        ` : ''}
+      </div>
+    `
+    return
   }
   
+  // Sort data
   if (sortFilter && sortFilter.value === 'efficiency') {
     machinesWithData.sort((a, b) => b.global - a.global)
   } else if (sortFilter && sortFilter.value === 'efficiency-low') {
@@ -80,109 +343,147 @@ function renderEfficiencyGrid() {
     machinesWithData.sort((a, b) => a.id - b.id)
   }
   
-  if (machinesWithData.length === 0) {
-    grid.innerHTML = `<div class="no-data">Tidak ada data untuk ${date}</div>`
-    return
-  }
-  
+  // Clear grid
   grid.innerHTML = ''
-  const BATCH_SIZE = 20
   
-  function renderBatch(startIdx) {
-    const endIdx = Math.min(startIdx + BATCH_SIZE, machinesWithData.length)
-    
-    for (let i = startIdx; i < endIdx; i++) {
-      const machine = machinesWithData[i]
-      
-      const card = document.createElement('div')
-      card.className = 'efficiency-card'
-      
-      let effClass = 'medium'
-      if (machine.global >= 80) effClass = 'high'
-      else if (machine.global < 60) effClass = 'low'
-      
-      const timestamp = machine.timestamp ? new Date(machine.timestamp).toLocaleString('id-ID') : 'Unknown'
-      
-      card.innerHTML = `
-        <div class="efficiency-card-header">
-          <div>
-            <div class="machine-number">Mesin ${machine.id}</div>
-            <div style="font-size: 11px; color: #9aa6c0;">Blok ${machine.block}</div>
-          </div>
-          <div class="efficiency-global ${effClass}">${machine.global}%</div>
-        </div>
-        
-        <div class="shift-data">
-          <div class="shift-item">
-            <div class="shift-label">Shift A</div>
-            <div class="shift-value">${machine.shiftA}%</div>
-          </div>
-          <div class="shift-item">
-            <div class="shift-label">Shift B</div>
-            <div class="shift-value">${machine.shiftB}%</div>
-          </div>
-          <div class="shift-item">
-            <div class="shift-label">Shift C</div>
-            <div class="shift-value">${machine.shiftC}%</div>
-          </div>
-        </div>
-        
-        <div style="margin-top: 12px; font-size: 10px; color: #9aa6c0;">
-          ${machine.editor || 'Unknown'} · ${timestamp}
-        </div>
-      `
-      
-      card.style.cursor = 'pointer'
-      card.addEventListener('click', () => {
-        if (window.efficiencySystem) {
-          window.efficiencySystem.openEfficiencyModal(machine.id)
-        }
-      })
-      
-      grid.appendChild(card)
-    }
-    
-    if (endIdx < machinesWithData.length) {
-      requestAnimationFrame(() => renderBatch(endIdx))
-    }
+  // Render data
+  machinesWithData.forEach(machine => {
+    const card = createEfficiencyCard(machine)
+    grid.appendChild(card)
+  })
+  
+  // Show cache info
+  if (window.dateCache && isMobileDevice()) {
+    showCacheInfo()
   }
-  
-  renderBatch(0)
-  console.log('✅ Grid rendered')
 }
 
-// ============ OPTIMIZED: updateBlockSummary ============
+// ✅ CREATE EFFICIENCY CARD
+function createEfficiencyCard(machine) {
+  const card = document.createElement('div')
+  card.className = 'efficiency-card'
+  
+  let effClass = 'medium'
+  if (machine.global >= 80) effClass = 'high'
+  else if (machine.global < 60) effClass = 'low'
+  
+  const timestamp = machine.timestamp ? new Date(machine.timestamp).toLocaleString('id-ID') : 'Unknown'
+  
+  card.innerHTML = `
+    <div class="efficiency-card-header">
+      <div>
+        <div class="machine-number">Mesin ${machine.id}</div>
+        <div style="font-size: 11px; color: #9aa6c0;">Blok ${machine.block}</div>
+      </div>
+      <div class="efficiency-global ${effClass}">${machine.global}%</div>
+    </div>
+    
+    <div class="shift-data">
+      <div class="shift-item">
+        <div class="shift-label">Shift A</div>
+        <div class="shift-value">${machine.shiftA}%</div>
+      </div>
+      <div class="shift-item">
+        <div class="shift-label">Shift B</div>
+        <div class="shift-value">${machine.shiftB}%</div>
+      </div>
+      <div class="shift-item">
+        <div class="shift-label">Shift C</div>
+        <div class="shift-value">${machine.shiftC}%</div>
+      </div>
+    </div>
+    
+    <div style="margin-top: 12px; font-size: 10px; color: #9aa6c0;">
+      ${machine.editor || 'Unknown'} · ${timestamp}
+    </div>
+  `
+  
+  card.style.cursor = 'pointer'
+  card.addEventListener('click', () => {
+    if (window.efficiencySystem) {
+      window.efficiencySystem.openEfficiencyModal(machine.id)
+    }
+  })
+  
+  return card
+}
+
+// ✅ LOAD DATE DATA (exposed for button)
+window.loadDateData = async function(date) {
+  const success = await window.lazyLoadDateData(date)
+  
+  if (success) {
+    renderEfficiencyGrid()
+    updateBlockSummary()
+    updateBlockChart()
+    showToast(`✅ Data untuk ${date} loaded`, 'success')
+  } else {
+    showToast(`📭 Tidak ada data untuk ${date}`, 'warn')
+  }
+}
+
+// ✅ SHOW CACHE INFO
+function showCacheInfo() {
+  if (!window.dateCache) return
+  
+  const cacheInfo = document.getElementById('cache-info')
+  if (!cacheInfo) {
+    const infoDiv = document.createElement('div')
+    infoDiv.id = 'cache-info'
+    infoDiv.style.cssText = `
+      font-size: 11px;
+      color: #9aa6c0;
+      margin: 8px 0;
+      padding: 6px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      text-align: center;
+    `
+    const grid = document.getElementById('efficiency-grid')
+    grid.parentElement.insertBefore(infoDiv, grid)
+  }
+  
+  const cachedDates = window.dateCache.getCachedDates()
+  document.getElementById('cache-info').innerHTML = `
+    💾 ${cachedDates.length} dates cached | 
+    Last sync: ${new Date().toLocaleTimeString()}
+  `
+}
+
+// ✅ UPDATE BLOCK SUMMARY
 function updateBlockSummary() {
   const dateFilter = document.getElementById('date-filter')
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
   
   if (!window.efficiencySystem) return
   
+  const blockA = window.efficiencySystem.getBlockEfficiency('A', date)
+  const blockB = window.efficiencySystem.getBlockEfficiency('B', date)
+  const blockC = window.efficiencySystem.getBlockEfficiency('C', date)
+  const blockD = window.efficiencySystem.getBlockEfficiency('D', date)
+  
   const elA = document.getElementById('block-a-eff')
   const elB = document.getElementById('block-b-eff')
   const elC = document.getElementById('block-c-eff')
   const elD = document.getElementById('block-d-eff')
   
-  if (elA) elA.textContent = window.efficiencySystem.getBlockEfficiency('A', date) + '%'
-  if (elB) elB.textContent = window.efficiencySystem.getBlockEfficiency('B', date) + '%'
-  if (elC) elC.textContent = window.efficiencySystem.getBlockEfficiency('C', date) + '%'
-  if (elD) elD.textContent = window.efficiencySystem.getBlockEfficiency('D', date) + '%'
+  if (elA) elA.textContent = blockA + '%'
+  if (elB) elB.textContent = blockB + '%'
+  if (elC) elC.textContent = blockC + '%'
+  if (elD) elD.textContent = blockD + '%'
 }
 
-// ============ OPTIMIZED: updateTrendChart ============
-let trendChartLastData = null
-
+// ✅ UPDATE TREND CHART
 function updateTrendChart() {
   const canvas = document.getElementById('efficiency-trend-chart')
-  if (!canvas) return
+  if (!canvas || !window.globalEfficiencySystem) return
   
   const ctx = canvas.getContext('2d')
   
-  if (!window.globalEfficiencySystem) return
-  
   const dateLabels = []
   const globalEfficiency = []
-
+  
+  // Last 30 days
   for (let i = 29; i >= 0; i--) {
     const date = new Date()
     date.setDate(date.getDate() - i)
@@ -196,18 +497,8 @@ function updateTrendChart() {
     globalEfficiency.push(globalData ? globalData.global : 0)
   }
   
-  const currentDataStr = JSON.stringify(globalEfficiency)
-  if (trendChartLastData === currentDataStr) {
-    return
-  }
-  trendChartLastData = currentDataStr
-  
   if (window.trendChart) {
     window.trendChart.destroy()
-  }
-  
-  if (typeof ChartDataLabels !== 'undefined') {
-    Chart.register(ChartDataLabels)
   }
   
   window.trendChart = new Chart(ctx, {
@@ -219,64 +510,43 @@ function updateTrendChart() {
         data: globalEfficiency,
         borderColor: '#ffd166',
         backgroundColor: 'rgba(255, 209, 102, 0.1)',
-        tension: 0,
+        tension: 0.3,
         fill: true,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        borderWidth: 3
+        pointRadius: 3,
+        borderWidth: 2
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: true,
-          labels: { color: '#cbd5e1', font: { size: 13 } }
-        },
-        datalabels: typeof ChartDataLabels !== 'undefined' ? {
-          display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
-          color: '#ffd166',
-          font: { weight: 'bold', size: 11 },
-          formatter: (val) => val > 0 ? val + '%' : '',
-          anchor: 'end',
-          align: 'top',
-          offset: 6,
-          rotation: -45
-        } : false
-      },
       scales: {
         x: {
           ticks: { color: '#cbd5e1', maxRotation: 45, minRotation: 45, font: { size: 10 } },
-          grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false }
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
         },
         y: {
           beginAtZero: true,
           max: 100,
           ticks: { 
-            color: '#cbd5e1', 
-            font: { size: 11 },
+            color: '#cbd5e1',
+            font: { size: 10 },
             callback: (val) => val + '%'
           },
-          grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false }
+          grid: { color: 'rgba(255, 255, 255, 0.05)' }
         }
       }
     }
   })
 }
 
-// ============ OPTIMIZED: updateBlockChart ============
-let blockChartLastData = null
-
+// ✅ UPDATE BLOCK CHART
 function updateBlockChart() {
   const canvas = document.getElementById('block-efficiency-chart')
-  if (!canvas) return
+  if (!canvas || !window.efficiencySystem) return
   
   const ctx = canvas.getContext('2d')
   const dateFilter = document.getElementById('date-filter')
   const date = dateFilter ? dateFilter.value : new Date().toISOString().split('T')[0]
-  
-  if (!window.efficiencySystem) return
   
   const blockEfficiency = {
     'Blok A': window.efficiencySystem.getBlockEfficiency('A', date),
@@ -285,18 +555,8 @@ function updateBlockChart() {
     'Blok D': window.efficiencySystem.getBlockEfficiency('D', date)
   }
   
-  const currentDataStr = JSON.stringify(blockEfficiency)
-  if (blockChartLastData === currentDataStr) {
-    return
-  }
-  blockChartLastData = currentDataStr
-  
   if (window.blockChart) {
     window.blockChart.destroy()
-  }
-  
-  if (typeof ChartDataLabels !== 'undefined') {
-    Chart.register(ChartDataLabels)
   }
   
   window.blockChart = new Chart(ctx, {
@@ -313,25 +573,28 @@ function updateBlockChart() {
       responsive: true,
       maintainAspectRatio: true,
       plugins: {
-        legend: { display: false },
-        datalabels: typeof ChartDataLabels !== 'undefined' ? {
-          display: true,
-          color: '#fff',
-          font: { weight: 'bold', size: 14 },
-          formatter: (val) => val > 0 ? val + '%' : '0%',
-          anchor: 'end',
-          align: 'top',
-          offset: 2
-        } : false
+        legend: { display: false }
       },
       scales: {
-        x: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(255, 255, 255, 0.05)' } },
-        y: { beginAtZero: true, max: 100, ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(255, 255, 255, 0.05)' } }
+        x: { 
+          ticks: { color: '#cbd5e1', font: { size: 11 } }, 
+          grid: { display: false } 
+        },
+        y: { 
+          beginAtZero: true, 
+          max: 100, 
+          ticks: { 
+            color: '#cbd5e1',
+            callback: (val) => val + '%'
+          }, 
+          grid: { color: 'rgba(255, 255, 255, 0.05)' } 
+        }
       }
     }
   })
 }
 
+// ✅ UPDATE CLOCK
 function updateClock() {
   const el = document.getElementById('clock')
   const de = document.getElementById('date')
@@ -350,402 +613,8 @@ function updateClock() {
   }
 }
 
-// ============ REAL-TIME SETUP ============
-let updateTimeout = null
-
-function setupEfficiencyRealtime() {
-  if (!window.isCloudAvailable || typeof setupEfficiencyRealtimeListener === 'undefined') {
-    console.warn('⚠️ Real-time unavailable')
-    return
-  }
-  
-  console.log('🔄 Real-time active')
-  
-  setupEfficiencyRealtimeListener(
-    (newEffData) => {
-      const overlay = document.getElementById('import-loading-overlay')
-      if (overlay && overlay.style.display !== 'none') {
-        console.log('⏸️ Import in progress, skip update')
-        return
-      }
-      
-      if (!newEffData || Object.keys(newEffData).length === 0) {
-        return
-      }
-      
-      clearTimeout(updateTimeout)
-      updateTimeout = setTimeout(() => {
-        console.log('📡 Machine efficiency updated from cloud')
-        
-        if (window.efficiencySystem) {
-          window.efficiencySystem.efficiencyData = newEffData
-          localStorage.setItem('machine_efficiency_v2', JSON.stringify(newEffData))
-          
-          renderEfficiencyGrid()
-          
-          setTimeout(() => {
-            updateBlockSummary()
-          }, 150)
-          
-          setTimeout(() => {
-            updateBlockChart()
-          }, 300)
-          
-          showToast('🔄 Efisiensi mesin diperbarui', 'success')
-        }
-      }, 2000)
-    },
-    (newGlobalData) => {
-      const overlay = document.getElementById('import-loading-overlay')
-      if (overlay && overlay.style.display !== 'none') {
-        return
-      }
-      
-      if (!newGlobalData || Object.keys(newGlobalData).length === 0) {
-        return
-      }
-      
-      clearTimeout(updateTimeout)
-      updateTimeout = setTimeout(() => {
-        console.log('📡 Global efficiency updated from cloud')
-        
-        if (window.globalEfficiencySystem) {
-          window.globalEfficiencySystem.globalEfficiencyData = newGlobalData
-          localStorage.setItem('global_efficiency_v1', JSON.stringify(newGlobalData))
-          
-          updateTrendChart()
-          
-          showToast('🔄 Efisiensi global diperbarui', 'success')
-        }
-      }, 2000)
-    }
-  )
-}
-
-// ============ LOADING OVERLAY ============
-let lastProgressUpdate = 0
-const PROGRESS_UPDATE_THROTTLE = 100
-
-function showLoadingOverlay(message, showProgress = false) {
-  let overlay = document.getElementById('import-loading-overlay')
-  if (!overlay) {
-    overlay = document.createElement('div')
-    overlay.id = 'import-loading-overlay'
-    overlay.style.cssText = `
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.9);
-      backdrop-filter: blur(8px);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 99999;
-      color: #fff;
-      font-size: 16px;
-      font-weight: 600;
-      will-change: opacity;
-    `
-    overlay.innerHTML = `
-      <div id="loading-icon" style="margin-bottom: 24px; font-size: 64px; will-change: transform;">⏳</div>
-      <div id="loading-message" style="font-size: 18px; margin-bottom: 12px;">${message}</div>
-      <div id="loading-submessage" style="font-size: 13px; color: #9aa6c0; margin-bottom: 24px;">Mohon tunggu...</div>
-      
-      <div id="progress-container-indeterminate" style="width: 300px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 8px;">
-        <div style="height: 100%; background: linear-gradient(90deg, #ffd166, #ff6ec7, #7c5cff); will-change: transform;"></div>
-      </div>
-      
-      <div id="progress-container-determinate" style="display: none; width: 300px; margin-bottom: 8px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; color: #cbd5e1;">
-          <span id="progress-text">0%</span>
-          <span id="progress-count">0 / 0</span>
-        </div>
-        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; position: relative;">
-          <div id="progress-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #34d399, #60a5fa); border-radius: 3px; will-change: width;"></div>
-        </div>
-      </div>
-      
-      <style>
-        @keyframes slide {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(400%); }
-        }
-        #progress-container-indeterminate > div {
-          animation: slide 1.5s ease-in-out infinite;
-        }
-      </style>
-    `
-    document.body.appendChild(overlay)
-  } else {
-    overlay.style.display = 'flex'
-    const messageEl = document.getElementById('loading-message')
-    if (messageEl) messageEl.textContent = message
-  }
-  
-  const indeterminate = document.getElementById('progress-container-indeterminate')
-  const determinate = document.getElementById('progress-container-determinate')
-  
-  if (showProgress) {
-    if (indeterminate) indeterminate.style.display = 'none'
-    if (determinate) determinate.style.display = 'block'
-  } else {
-    if (indeterminate) indeterminate.style.display = 'block'
-    if (determinate) determinate.style.display = 'none'
-  }
-}
-
-function updateLoadingOverlay(message, submessage = '') {
-  const messageEl = document.getElementById('loading-message')
-  const submessageEl = document.getElementById('loading-submessage')
-  
-  if (messageEl) messageEl.textContent = message
-  if (submessageEl) submessageEl.textContent = submessage || 'Mohon tunggu...'
-}
-
-function updateLoadingProgress(current, total) {
-  const progressBar = document.getElementById('progress-bar')
-  const progressText = document.getElementById('progress-text')
-  const progressCount = document.getElementById('progress-count')
-  
-  if (!progressBar || !progressText || !progressCount) return
-  
-  const percentage = Math.round((current / total) * 100)
-  
-  progressBar.style.width = percentage + '%'
-  progressText.textContent = percentage + '%'
-  progressCount.textContent = `${current} / ${total}`
-}
-
-function hideLoadingOverlay() {
-  const overlay = document.getElementById('import-loading-overlay')
-  if (overlay) {
-    overlay.style.transition = 'opacity 0.3s ease'
-    overlay.style.opacity = '0'
-    setTimeout(() => {
-      overlay.style.display = 'none'
-      overlay.style.opacity = '1'
-    }, 300)
-  }
-}
-
-// ============ EVENT LISTENERS ============
-function attachEventListeners() {
-  const dateFilter = document.getElementById('date-filter')
-  if (dateFilter) {
-    dateFilter.value = new Date().toISOString().split('T')[0]
-    dateFilter.addEventListener('change', () => {
-      renderEfficiencyGrid()
-      updateBlockSummary()
-      updateBlockChart()
-    })
-  }
-  
-  const blockFilter = document.getElementById('block-filter')
-  if (blockFilter) {
-    blockFilter.addEventListener('change', renderEfficiencyGrid)
-  }
-  
-  const sortFilter = document.getElementById('sort-filter')
-  if (sortFilter) {
-    sortFilter.addEventListener('change', renderEfficiencyGrid)
-  }
-  
-  const importMachineBtn = document.getElementById('import-efficiency')
-  if (importMachineBtn) {
-    importMachineBtn.addEventListener('click', () => {
-      document.getElementById('efficiency-machine-file-input')?.click()
-    })
-  }
-
-  const importGlobalBtn = document.getElementById('import-efficiency-global')
-  if (importGlobalBtn) {
-    importGlobalBtn.addEventListener('click', () => {
-      document.getElementById('efficiency-global-file-input')?.click()
-    })
-  }
-
-  const machineFileInput = document.getElementById('efficiency-machine-file-input')
-  if (machineFileInput) {
-    machineFileInput.addEventListener('change', async (e) => {
-      if (e.target.files[0]) {
-        try {
-          const importBtn = document.getElementById('import-efficiency')
-          const syncBtn = document.getElementById('manual-sync-btn')
-          if (importBtn) importBtn.disabled = true
-          if (syncBtn) syncBtn.disabled = true
-          
-          showLoadingOverlay('📂 Reading Excel file...')
-          await new Promise(resolve => setTimeout(resolve, 300))
-          
-          updateLoadingOverlay('📥 Importing data...', 'Processing Excel sheets...')
-          const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
-          
-          updateLoadingOverlay('☁️ Syncing to cloud...', 'Please wait...')
-          await new Promise(resolve => setTimeout(resolve, 1500))
-          
-          hideLoadingOverlay()
-          
-          setTimeout(() => {
-            renderEfficiencyGrid()
-          }, 100)
-          
-          setTimeout(() => {
-            updateBlockSummary()
-          }, 250)
-          
-          setTimeout(() => {
-            updateBlockChart()
-          }, 400)
-          
-          setTimeout(() => {
-            updateTrendChart()
-          }, 550)
-          
-          showToast(`✅ ${result.imported} records imported!`, 'success')
-          
-          if (importBtn) importBtn.disabled = false
-          if (syncBtn) syncBtn.disabled = false
-          
-          e.target.value = ''
-        } catch (error) {
-          hideLoadingOverlay()
-          console.error('Import error:', error)
-          showToast('❌ Import failed: ' + error.message, 'warn')
-          
-          const importBtn = document.getElementById('import-efficiency')
-          const syncBtn = document.getElementById('manual-sync-btn')
-          if (importBtn) importBtn.disabled = false
-          if (syncBtn) syncBtn.disabled = false
-        }
-      }
-    })
-  }
-
-  const globalFileInput = document.getElementById('efficiency-global-file-input')
-  if (globalFileInput) {
-    globalFileInput.addEventListener('change', async (e) => {
-      if (e.target.files[0]) {
-        try {
-          if (!window.globalEfficiencySystem) throw new Error('Global system not loaded')
-          window.importInProgress = true
-          showToast('📥 Importing global data...', 'success')
-          const result = await window.globalEfficiencySystem.importGlobalEfficiencyFromExcel(e.target.files[0])
-          window.importInProgress = false
-          showToast(`✅ ${result.imported} global records imported!`, 'success')
-          updateTrendChart()
-          e.target.value = ''
-        } catch (error) {
-          window.importInProgress = false
-          console.error('Import error:', error)
-          showToast('❌ Import failed: ' + error.message, 'warn')
-        }
-      }
-    })
-  }
-
-  const exportBtn = document.getElementById('export-efficiency')
-  if (exportBtn) {
-    exportBtn.addEventListener('click', async () => {
-      try {
-        const success = await window.efficiencySystem.exportEfficiencyToExcel()
-        showToast(success ? '✅ Export berhasil' : '❌ Export gagal', success ? 'success' : 'warn')
-      } catch (error) {
-        showToast('❌ Export failed', 'warn')
-      }
-    })
-  }
-   
-  const manualSyncBtn = document.getElementById('manual-sync-btn')
-  if (manualSyncBtn) {
-    manualSyncBtn.addEventListener('click', async () => {
-      manualSyncBtn.disabled = true
-      manualSyncBtn.innerHTML = '🔄 Syncing...'
-      
-      try {
-        showLoadingOverlay('🔄 Syncing from cloud...', true)
-        
-        updateLoadingOverlay('📥 Loading data...', 'Step 1/2')
-        updateLoadingProgress(1, 2)
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const success = await loadAllEfficiencyData(true)
-        
-        if (success) {
-          updateLoadingOverlay('🎨 Updating UI...', 'Step 2/2')
-          updateLoadingProgress(2, 2)
-          await new Promise(resolve => setTimeout(resolve, 500))
-          
-          renderEfficiencyGrid()
-          updateBlockSummary()
-          updateTrendChart()
-          updateBlockChart()
-          
-          hideLoadingOverlay()
-          showToast('✅ Data synced successfully', 'success')
-        } else {
-          hideLoadingOverlay()
-          showToast('❌ Sync failed', 'warn')
-        }
-      } catch (error) {
-        hideLoadingOverlay()
-        console.error('Sync error:', error)
-        showToast('❌ Error: ' + error.message, 'warn')
-      } finally {
-        manualSyncBtn.disabled = false
-        manualSyncBtn.innerHTML = '🔄 Sync Data'
-      }
-    })
-  }
-}
-
-// ============ LOAD FROM CLOUD ============
-async function loadAllEfficiencyData(force = false) {
-  const now = Date.now()
-  
-  if (hasLoadedOnce && !force) {
-    return false
-  }
-  
-  if (isLoading || (now - lastLoadTime < LOAD_COOLDOWN)) {
-    return false
-  }
-  
-  isLoading = true
-  lastLoadTime = now
-  
-  try {
-    if (typeof loadEfficiencyFromCloud !== 'undefined') {
-      const cloudData = await loadEfficiencyFromCloud()
-      if (cloudData && Object.keys(cloudData).length > 0) {
-        if (window.efficiencySystem) {
-          window.efficiencySystem.efficiencyData = cloudData
-          localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
-        }
-      }
-    }
-    
-    if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
-      const globalData = await loadGlobalEfficiencyFromCloud()
-      if (globalData && Object.keys(globalData).length > 0) {
-        if (window.globalEfficiencySystem) {
-          window.globalEfficiencySystem.globalEfficiencyData = globalData
-          localStorage.setItem('global_efficiency_v1', JSON.stringify(globalData))
-        }
-      }
-    }
-    
-    hasLoadedOnce = true
-    return true
-  } catch (e) {
-    console.error('Load error:', e)
-    return false
-  } finally {
-    isLoading = false
-  }
-}
-
-// ============ TOAST NOTIFICATIONS ============
-function showToast(text, type = '') {
+// ✅ SHOW TOAST
+function showToast(text, type = '', duration = 3000) {
   let root = document.querySelector('.toast-root')
   if (!root) {
     root = document.createElement('div')
@@ -783,13 +652,153 @@ function showToast(text, type = '') {
     toast.style.opacity = '0'
     toast.style.transform = 'translateX(20px)'
     setTimeout(() => toast.remove(), 350)
-  }, 3500)
+  }, duration)
 }
 
-// ============ INITIALIZATION ============
-async function initialize() {
-  console.log('🚀 Initializing...')
+// ✅ ATTACH EVENT LISTENERS
+function attachEventListeners() {
+  // Smart date filter
+  setupSmartDateFilter()
   
+  // Block filter
+  const blockFilter = document.getElementById('block-filter')
+  if (blockFilter) {
+    blockFilter.addEventListener('change', renderEfficiencyGrid)
+  }
+  
+  // Sort filter
+  const sortFilter = document.getElementById('sort-filter')
+  if (sortFilter) {
+    sortFilter.addEventListener('change', renderEfficiencyGrid)
+  }
+  
+  // Import buttons
+  const importBtn = document.getElementById('import-efficiency')
+  if (importBtn) {
+    importBtn.addEventListener('click', () => {
+      document.getElementById('efficiency-machine-file-input')?.click()
+    })
+  }
+  
+  const importGlobalBtn = document.getElementById('import-efficiency-global')
+  if (importGlobalBtn) {
+    importGlobalBtn.addEventListener('click', () => {
+      document.getElementById('efficiency-global-file-input')?.click()
+    })
+  }
+  
+  // Sync button
+  const syncBtn = document.getElementById('manual-sync-btn')
+  if (syncBtn) {
+    syncBtn.addEventListener('click', async () => {
+      syncBtn.disabled = true
+      syncBtn.innerHTML = '🔄 Syncing...'
+      
+      try {
+        // Clear cache
+        if (window.dateCache) {
+          window.dateCache.cache = {}
+          localStorage.removeItem('date_cache_v1')
+        }
+        
+        // Reload all data
+        await loadAllEfficiencyData(true)
+        
+        // Reload current date
+        const dateFilter = document.getElementById('date-filter')
+        if (dateFilter && dateFilter.value) {
+          await window.lazyLoadDateData(dateFilter.value, true)
+        }
+        
+        // Update UI
+        renderEfficiencyGrid()
+        updateBlockSummary()
+        updateTrendChart()
+        updateBlockChart()
+        
+        showToast('✅ Cache refreshed!', 'success')
+        
+      } catch (error) {
+        showToast('❌ Sync failed', 'warn')
+        console.error('Sync error:', error)
+      } finally {
+        syncBtn.disabled = false
+        syncBtn.innerHTML = '🔄 Sync Data'
+      }
+    })
+  }
+  
+  // Export button
+  const exportBtn = document.getElementById('export-efficiency')
+  if (exportBtn) {
+    exportBtn.addEventListener('click', async () => {
+      try {
+        const success = await window.efficiencySystem.exportEfficiencyToExcel()
+        showToast(success ? '✅ Export berhasil' : '❌ Export gagal', success ? 'success' : 'warn')
+      } catch (error) {
+        showToast('❌ Export failed', 'warn')
+      }
+    })
+  }
+  
+  // File inputs
+  const machineFileInput = document.getElementById('efficiency-machine-file-input')
+  if (machineFileInput) {
+    machineFileInput.addEventListener('change', async (e) => {
+      if (e.target.files[0]) {
+        try {
+          if (!window.efficiencySystem) throw new Error('System not loaded')
+          
+          const importBtn = document.getElementById('import-efficiency')
+          const syncBtn = document.getElementById('manual-sync-btn')
+          if (importBtn) importBtn.disabled = true
+          if (syncBtn) syncBtn.disabled = true
+          
+          showToast('📥 Importing data...', 'success')
+          
+          const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
+          
+          // Auto-sync setelah import
+          setTimeout(async () => {
+            await loadAllEfficiencyData(true)
+            renderEfficiencyGrid()
+            updateBlockSummary()
+            updateTrendChart()
+            updateBlockChart()
+            
+            showToast(`✅ ${result.imported} records imported!`, 'success')
+          }, 1000)
+          
+          if (importBtn) importBtn.disabled = false
+          if (syncBtn) syncBtn.disabled = false
+          e.target.value = ''
+          
+        } catch (error) {
+          console.error('Import error:', error)
+          showToast('❌ Import failed: ' + error.message, 'warn')
+        }
+      }
+    })
+  }
+}
+
+// ✅ HELPER: GET MACHINE BLOCK
+function getMachineBlock(machineNum) {
+  for (const [blockName, ranges] of Object.entries(BLOCKS)) {
+    for (const range of ranges) {
+      if (machineNum >= range.start && machineNum <= range.end) {
+        return blockName
+      }
+    }
+  }
+  return '?'
+}
+
+// ✅ INITIALIZE
+async function initialize() {
+  console.log('🚀 Initializing efficiency page...')
+  
+  // Wait for systems
   let attempts = 0
   while (attempts < 10) {
     if (window.efficiencySystem && window.globalEfficiencySystem) {
@@ -800,98 +809,37 @@ async function initialize() {
     attempts++
   }
   
-  if (!window.efficiencySystem) {
-    console.error('❌ System not loaded')
-    return
-  }
-  
+  // Setup cloud
   if (typeof supabaseInit !== 'undefined') {
     const ready = await supabaseInit()
     window.isCloudAvailable = ready
+    console.log('☁️ Cloud:', ready ? 'Ready' : 'Offline')
     
     if (ready) {
+      // Load initial data
       await loadAllEfficiencyData()
-      setupEfficiencyRealtime()
-    }
-  }
-
-  // ✅ FORCE LOAD CLOUD DATA KE HP
-  if (window.isCloudAvailable && typeof loadEfficiencyFromCloud !== 'undefined') {
-    try {
-      const cloudData = await loadEfficiencyFromCloud()
-      if (cloudData && Object.keys(cloudData).length > 0) {
-        window.efficiencySystem.efficiencyData = cloudData
-        localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
-        console.log('✅ HP: Loaded', Object.keys(cloudData).length, 'machines from cloud')
-      }
-    } catch (e) {
-      console.error('HP: Force load error:', e)
     }
   }
   
+  // Setup event listeners
   attachEventListeners()
+  
+  // Initial render
   renderEfficiencyGrid()
   updateBlockSummary()
   updateTrendChart()
   updateBlockChart()
   updateClock()
   
-  if (window.efficiencySystem && window.efficiencySystem.setupEfficiencyModalListeners) {
-    window.efficiencySystem.setupEfficiencyModalListeners()
-  }
-  
-  // ✅ PERIODIC SYNC SETIAP 30 DETIK
-  if (window.isCloudAvailable) {
-    console.log('⏱️ Periodic sync active...')
-    
-    setInterval(async () => {
-      try {
-        if (typeof loadEfficiencyFromCloud !== 'undefined') {
-          const cloudEff = await loadEfficiencyFromCloud()
-          if (cloudEff && Object.keys(cloudEff).length > Object.keys(window.efficiencySystem?.efficiencyData || {}).length) {
-            console.log('🔄 Periodic: New machine data found')
-            window.efficiencySystem.efficiencyData = cloudEff
-            localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudEff))
-            
-            renderEfficiencyGrid()
-            updateBlockSummary()
-            updateBlockChart()
-          }
-        }
-        
-        if (typeof loadGlobalEfficiencyFromCloud !== 'undefined') {
-          const cloudGlobal = await loadGlobalEfficiencyFromCloud()
-          if (cloudGlobal && Object.keys(cloudGlobal).length > Object.keys(window.globalEfficiencySystem?.globalEfficiencyData || {}).length) {
-            console.log('🔄 Periodic: New global data found')
-            window.globalEfficiencySystem.globalEfficiencyData = cloudGlobal
-            localStorage.setItem('global_efficiency_v1', JSON.stringify(cloudGlobal))
-            
-            updateTrendChart()
-          }
-        }
-      } catch (e) {
-        console.warn('⚠️ Periodic sync error:', e)
-      }
-    }, 10000)
-  }
-  
-  console.log('✅ Initialized')
+  console.log('✅ Efficiency page initialized')
 }
 
+// Run on load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initialize)
 } else {
   initialize()
 }
 
+// Update clock every second
 setInterval(updateClock, 1000)
-
-window.efficiencyPage = {
-  renderEfficiencyGrid,
-  updateBlockSummary,
-  updateTrendChart,
-  updateBlockChart,
-  loadAllEfficiencyData
-}
-
-console.log('✅ Efficiency page loaded')
