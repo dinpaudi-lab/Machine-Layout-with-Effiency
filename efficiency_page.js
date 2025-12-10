@@ -476,6 +476,189 @@ function setupEfficiencyRealtime() {
     }
   )
 }
+// ✅ LOADING OVERLAY dengan Progress Bar (OPTIMIZED - NO LAG)
+let lastProgressUpdate = 0
+const PROGRESS_UPDATE_THROTTLE = 100 // Update max 10x per detik
+
+function showLoadingOverlay(message, showProgress = false) {
+  let overlay = document.getElementById('import-loading-overlay')
+  if (!overlay) {
+    overlay = document.createElement('div')
+    overlay.id = 'import-loading-overlay'
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      will-change: opacity;
+    `
+    overlay.innerHTML = `
+      <div id="loading-icon" style="margin-bottom: 24px; font-size: 64px; will-change: transform;">⏳</div>
+      <div id="loading-message" style="font-size: 18px; margin-bottom: 12px;">${message}</div>
+      <div id="loading-submessage" style="font-size: 13px; color: #9aa6c0; margin-bottom: 24px;">Mohon tunggu...</div>
+      
+      <div id="progress-container-indeterminate" style="width: 300px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 8px;">
+        <div style="height: 100%; background: linear-gradient(90deg, #ffd166, #ff6ec7, #7c5cff); will-change: transform;"></div>
+      </div>
+      
+      <div id="progress-container-determinate" style="display: none; width: 300px; margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; color: #cbd5e1;">
+          <span id="progress-text">0%</span>
+          <span id="progress-count">0 / 0</span>
+        </div>
+        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; position: relative;">
+          <div id="progress-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #34d399, #60a5fa); border-radius: 3px; will-change: width;"></div>
+        </div>
+      </div>
+      
+      <div id="loading-tip" style="font-size: 11px; color: #64748b; margin-top: 16px; text-align: center; max-width: 320px; line-height: 1.6;">
+        💡 Tip: Jangan tutup browser selama proses berlangsung
+      </div>
+      
+      <style>
+        @keyframes slide {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
+        }
+        #progress-container-indeterminate > div {
+          animation: slide 1.5s ease-in-out infinite;
+        }
+        #loading-icon {
+          animation: bounce 1.5s ease-in-out infinite;
+        }
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0) rotate(0deg); }
+          50% { transform: translateY(-10px) rotate(10deg); }
+        }
+      </style>
+    `
+    document.body.appendChild(overlay)
+  } else {
+    overlay.style.display = 'flex'
+    const messageEl = document.getElementById('loading-message')
+    if (messageEl) messageEl.textContent = message
+  }
+  
+  const indeterminate = document.getElementById('progress-container-indeterminate')
+  const determinate = document.getElementById('progress-container-determinate')
+  
+  if (showProgress) {
+    if (indeterminate) indeterminate.style.display = 'none'
+    if (determinate) determinate.style.display = 'block'
+  } else {
+    if (indeterminate) indeterminate.style.display = 'block'
+    if (determinate) determinate.style.display = 'none'
+  }
+}
+
+function updateLoadingOverlay(message, submessage = '') {
+  const now = Date.now()
+  if (now - lastProgressUpdate < PROGRESS_UPDATE_THROTTLE) {
+    return
+  }
+  lastProgressUpdate = now
+  
+  requestAnimationFrame(() => {
+    const messageEl = document.getElementById('loading-message')
+    const submessageEl = document.getElementById('loading-submessage')
+    
+    if (messageEl) messageEl.textContent = message
+    if (submessageEl) submessageEl.textContent = submessage || 'Mohon tunggu...'
+  })
+}
+
+function updateLoadingProgress(current, total) {
+  const now = Date.now()
+  if (now - lastProgressUpdate < PROGRESS_UPDATE_THROTTLE) {
+    return
+  }
+  lastProgressUpdate = now
+  
+  requestAnimationFrame(() => {
+    const progressBar = document.getElementById('progress-bar')
+    const progressText = document.getElementById('progress-text')
+    const progressCount = document.getElementById('progress-count')
+    
+    if (!progressBar || !progressText || !progressCount) return
+    
+    const percentage = Math.round((current / total) * 100)
+    
+    progressBar.style.width = percentage + '%'
+    progressText.textContent = percentage + '%'
+    progressCount.textContent = `${current} / ${total}`
+    
+    const icon = document.getElementById('loading-icon')
+    if (icon) {
+      if (percentage < 30) icon.textContent = '📥'
+      else if (percentage < 60) icon.textContent = '⚙️'
+      else if (percentage < 90) icon.textContent = '☁️'
+      else icon.textContent = '✨'
+    }
+  })
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.getElementById('import-loading-overlay')
+  if (overlay) {
+    overlay.style.transition = 'opacity 0.3s ease'
+    overlay.style.opacity = '0'
+    setTimeout(() => {
+      overlay.style.display = 'none'
+      overlay.style.opacity = '1'
+    }, 300)
+  }
+}
+
+async function progressiveRender() {
+  console.log('🎨 Progressive render starting...')
+  
+  showLoadingOverlay('🎨 Rendering UI...', true)
+  
+  const steps = [
+    { name: 'Block Summary', fn: updateBlockSummary },
+    { name: 'Trend Chart', fn: updateTrendChart },
+    { name: 'Block Chart', fn: updateBlockChart },
+    { name: 'Efficiency Grid', fn: renderEfficiencyGrid }
+  ]
+  
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i]
+    
+    updateLoadingOverlay(
+      `🎨 Rendering ${step.name}...`,
+      `Step ${i + 1}/${steps.length}`
+    )
+    
+    updateLoadingProgress(i, steps.length)
+    
+    console.log(`🎨 Rendering ${step.name}...`)
+    
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    
+    try {
+      step.fn()
+    } catch (e) {
+      console.error(`❌ Error rendering ${step.name}:`, e)
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  
+  updateLoadingProgress(steps.length, steps.length)
+  
+  await new Promise(resolve => setTimeout(resolve, 200))
+  hideLoadingOverlay()
+  
+  console.log('✅ Progressive render complete')
+}
 
 // ✅ EVENT LISTENERS
 function attachEventListeners() {
@@ -513,42 +696,62 @@ function attachEventListeners() {
     })
   }
 
-  const machineFileInput = document.getElementById('efficiency-machine-file-input')
+ const machineFileInput = document.getElementById('efficiency-machine-file-input')
 if (machineFileInput) {
   machineFileInput.addEventListener('change', async (e) => {
     if (e.target.files[0]) {
       try {
         if (!window.efficiencySystem) throw new Error('System not loaded')
         
-        // 🚫 STEP 1: Kasih tanda "lagi import, jangan render dulu"
-        window.importInProgress = true
+        // ✅ DISABLE UI selama import
+        const importBtn = document.getElementById('import-efficiency')
+        const syncBtn = document.getElementById('manual-sync-btn')
+        if (importBtn) importBtn.disabled = true
+        if (syncBtn) syncBtn.disabled = true
         
-        // 🔄 STEP 2: Kasih loading message
-        showToast('📥 Importing machine data...', 'success')
+        // ✅ STEP 1: Show loading (indeterminate)
+        showLoadingOverlay('📂 Reading Excel file...')
         
-        // 📂 STEP 3: Import file (proses berat di sini)
+        // ✅ Small delay for visual feedback
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        // ✅ STEP 2: Import Excel (background process)
+        updateLoadingOverlay('📥 Importing data...', 'Processing Excel sheets...')
         const result = await window.efficiencySystem.importEfficiencyFromExcel(e.target.files[0])
         
-        // ✅ STEP 4: Import selesai, boleh render lagi
-        window.importInProgress = false
+        // ✅ STEP 3: Cloud sync notification (happens in background)
+        updateLoadingOverlay('☁️ Syncing to cloud...', 'Please wait...')
+        showLoadingOverlay('☁️ Syncing to cloud...', true) // Enable progress bar
         
-        // 🎉 STEP 5: Kasih tau user sukses
-        showToast(`✅ ${result.imported} machine records imported!`, 'success')
+        // Wait for cloud sync (progress updates automatically via supabase_sync)
+        await new Promise(resolve => setTimeout(resolve, 1500))
         
-        // 🎨 STEP 6: RENDER UI SEKALI (bukan 1000x)
-        renderEfficiencyGrid()
-        updateBlockSummary()
-        updateTrendChart()
-        updateBlockChart()
+        // ✅ STEP 4: Success message
+        updateLoadingOverlay('✅ Import Complete!', `${result.imported} records saved`)
+        await new Promise(resolve => setTimeout(resolve, 800))
         
-        // 🧹 STEP 7: Reset file input
+        // ✅ STEP 5: Progressive render (smooth, no lag)
+        await progressiveRender()
+        
+        hideLoadingOverlay()
+        showToast(`✅ ${result.imported} records imported & synced!`, 'success')
+        
+        // ✅ Re-enable UI
+        if (importBtn) importBtn.disabled = false
+        if (syncBtn) syncBtn.disabled = false
+        
         e.target.value = ''
         
       } catch (error) {
-        // ❌ Kalau error, matikan flag import juga
-        window.importInProgress = false
+        hideLoadingOverlay()
         console.error('Import error:', error)
         showToast('❌ Import failed: ' + error.message, 'warn')
+        
+        // Re-enable UI on error
+        const importBtn = document.getElementById('import-efficiency')
+        const syncBtn = document.getElementById('manual-sync-btn')
+        if (importBtn) importBtn.disabled = false
+        if (syncBtn) syncBtn.disabled = false
       }
     }
   })
@@ -612,25 +815,53 @@ if (globalFileInput) {
       }
       
       manualSyncBtn.disabled = true
-      manualSyncBtn.innerHTML = '🔄 Loading...'
+      manualSyncBtn.innerHTML = '🔄 Syncing...'
       
-      const success = await loadAllEfficiencyData(true) // force = true
-      
-      if (success) {
-        renderEfficiencyGrid()
-        updateBlockSummary()
-        updateTrendChart()
-        updateBlockChart()
-        showToast('✅ Data refreshed', 'success')
-      } else {
-        showToast('❌ Sync failed', 'warn')
+      try {
+        // ✅ Show loading overlay
+        showLoadingOverlay('🔄 Syncing from cloud...', true)
+        
+        // ✅ Step 1: Load efficiency data
+        updateLoadingOverlay('📥 Loading machine efficiency...', 'Step 1/3')
+        updateLoadingProgress(1, 3)
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const success = await loadAllEfficiencyData(true)
+        
+        if (success) {
+          // ✅ Step 2: Load global data
+          updateLoadingOverlay('📥 Loading global efficiency...', 'Step 2/3')
+          updateLoadingProgress(2, 3)
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // ✅ Step 3: Update UI
+          updateLoadingOverlay('🎨 Updating UI...', 'Step 3/3')
+          updateLoadingProgress(3, 3)
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Progressive render
+          await progressiveRender()
+          
+          // ✅ Show success info
+          const machineCount = Object.keys(window.efficiencySystem?.efficiencyData || {}).length
+          const dateCount = Object.keys(window.globalEfficiencySystem?.globalEfficiencyData || {}).length
+          
+          hideLoadingOverlay()
+          showToast(`✅ Synced: ${machineCount} machines, ${dateCount} dates`, 'success')
+        } else {
+          hideLoadingOverlay()
+          showToast('❌ Sync failed - check console', 'warn')
+        }
+      } catch (error) {
+        hideLoadingOverlay()
+        console.error('Sync error:', error)
+        showToast('❌ Sync error: ' + error.message, 'warn')
+      } finally {
+        manualSyncBtn.disabled = false
+        manualSyncBtn.innerHTML = '🔄 Sync Data'
       }
-      
-      manualSyncBtn.disabled = false
-      manualSyncBtn.innerHTML = '🔄 Sync Data'
     })
   }
-}
 
 // ✅ INITIALIZATION - Load ONCE
 async function initialize() {
