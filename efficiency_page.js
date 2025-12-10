@@ -58,7 +58,7 @@ async function loadAllEfficiencyData(force = false) {
   lastLoadTime = now
   
   try {
-    console.log('📥 Loading from cloud...')
+    console.log('Loading from cloud...')
     
     // Load machine efficiency
     if (typeof loadEfficiencyFromCloud !== 'undefined') {
