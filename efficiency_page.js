@@ -814,6 +814,20 @@ async function initialize() {
       setupEfficiencyRealtime()
     }
   }
+
+  // ✅ FORCE LOAD CLOUD DATA KE HP
+  if (window.isCloudAvailable && typeof loadEfficiencyFromCloud !== 'undefined') {
+    try {
+      const cloudData = await loadEfficiencyFromCloud()
+      if (cloudData && Object.keys(cloudData).length > 0) {
+        window.efficiencySystem.efficiencyData = cloudData
+        localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
+        console.log('✅ HP: Loaded', Object.keys(cloudData).length, 'machines from cloud')
+      }
+    } catch (e) {
+      console.error('HP: Force load error:', e)
+    }
+  }
   
   attachEventListeners()
   renderEfficiencyGrid()
