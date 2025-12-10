@@ -212,15 +212,53 @@ async function saveEfficiencyToCloud(efficiencyData) {
     
     if (entries.length === 0) return true;
     
-    console.log('💾 Saving', entries.length, 'efficiency records...');
+    console.log('💾 Saving', entries.length, 'efficiency records to cloud...');
     
-    const BATCH = 100;
-    for (let i = 0; i < entries.length; i += BATCH) {
-      await supabase.from('efficiency').upsert(entries.slice(i, i + BATCH), { onConflict: 'machine_id,date' });
+    const BATCH = 500;
+    let savedCount = 0;
+    const totalBatches = Math.ceil(entries.length / BATCH);
+    
+    if (typeof showLoadingOverlay !== 'undefined') {
+      showLoadingOverlay('☁️ Syncing to cloud...', true);
     }
     
-    console.log('✅ Efficiency saved to cloud');
-    return true;
+    for (let i = 0; i < entries.length; i += BATCH) {
+      const batch = entries.slice(i, i + BATCH);
+      const currentBatch = Math.floor(i / BATCH) + 1;
+      
+      console.log(`📦 Syncing batch ${currentBatch}/${totalBatches} (${batch.length} records)...`);
+      
+      if (typeof updateLoadingProgress !== 'undefined') {
+        updateLoadingProgress(savedCount, entries.length);
+      }
+      
+      if (typeof updateLoadingOverlay !== 'undefined') {
+        updateLoadingOverlay(
+          `☁️ Syncing to cloud...`,
+          `Batch ${currentBatch}/${totalBatches} - ${savedCount}/${entries.length} records`
+        );
+      }
+      
+      const result = await supabase.from('efficiency').upsert(batch, { onConflict: 'machine_id,date' });
+      
+      if (result.error) {
+        console.error('❌ Batch sync error:', result.error.message);
+      } else {
+        savedCount += batch.length;
+        console.log(`✅ Batch synced (${savedCount}/${entries.length} total)`);
+        
+        if (typeof updateLoadingProgress !== 'undefined') {
+          updateLoadingProgress(savedCount, entries.length);
+        }
+      }
+      
+      if (i + BATCH < entries.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    console.log(`✅ Efficiency saved to cloud: ${savedCount}/${entries.length} records`);
+    return savedCount === entries.length;
   } catch (e) {
     console.error('Save efficiency error:', e.message);
     return false;
