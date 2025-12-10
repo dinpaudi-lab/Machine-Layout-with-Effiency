@@ -1,9 +1,7 @@
-// ============ EFFICIENCY MANAGEMENT SYSTEM - FIXED CLOUD SYNC ============
-// Mengelola efisiensi mesin per shift (A, B, C)
+// ============ EFFICIENCY MANAGEMENT SYSTEM - FIXED ============
 
 const EFFICIENCY_KEY = 'machine_efficiency_v2'
 
-// ============ CONFIGURATION ============
 const MACHINE_CONFIG = {
   TOTAL_MACHINES: 640,
   OPERATIONAL_START: 1,
@@ -17,14 +15,12 @@ function isMachineOperational(machineId) {
 
 let efficiencyData = {}
 
-// ============ CLOUD SYNC HELPERS ============
+// ============ CLOUD HELPERS ============
 
-// Ensure cloud is ready before operations
 async function ensureCloudReady() {
   if (window.isCloudAvailable) return true
   
   if (typeof supabaseInit !== 'undefined') {
-    console.log('🔧 Initializing cloud...')
     const ready = await supabaseInit()
     window.isCloudAvailable = ready
     return ready
@@ -33,7 +29,6 @@ async function ensureCloudReady() {
   return false
 }
 
-// Force sync with retry
 async function forceSyncToCloud(data) {
   const MAX_RETRIES = 3
   let attempt = 0
@@ -41,32 +36,22 @@ async function forceSyncToCloud(data) {
   while (attempt < MAX_RETRIES) {
     try {
       attempt++
-      console.log(`☁️ Sync attempt ${attempt}/${MAX_RETRIES}...`)
-      
       const cloudReady = await ensureCloudReady()
-      if (!cloudReady) {
-        console.warn('⚠️ Cloud not available')
-        return false
-      }
+      if (!cloudReady) return false
       
       if (typeof saveEfficiencyToCloud !== 'undefined') {
         const success = await saveEfficiencyToCloud(data)
-        if (success) {
-          console.log('✅ Cloud sync successful')
-          return true
-        }
+        if (success) return true
       }
       
-      // Wait before retry
       if (attempt < MAX_RETRIES) {
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
       }
     } catch (e) {
-      console.error(`❌ Sync attempt ${attempt} failed:`, e)
+      console.error(`Sync attempt ${attempt} failed:`, e)
     }
   }
   
-  console.error('❌ All sync attempts failed')
   return false
 }
 
@@ -77,11 +62,11 @@ function loadEfficiencyData() {
     const raw = localStorage.getItem(EFFICIENCY_KEY)
     if (raw) {
       efficiencyData = JSON.parse(raw)
-      console.log('✅ Loaded efficiency data:', Object.keys(efficiencyData).length, 'machines')
+      console.log('✅ Loaded machine efficiency:', Object.keys(efficiencyData).length, 'machines')
       return efficiencyData
     }
   } catch (e) {
-    console.error('❌ Error loading efficiency:', e)
+    console.error('Load error:', e)
   }
   efficiencyData = {}
   return efficiencyData
@@ -89,38 +74,25 @@ function loadEfficiencyData() {
 
 async function saveEfficiencyData() {
   try {
-    // 1. Save to localStorage first (fast)
     localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
-    console.log('💾 Efficiency saved to localStorage')
+    console.log('💾 Machine efficiency saved to localStorage')
     
-    // 2. Then sync to cloud (slow, non-blocking)
     const cloudReady = await ensureCloudReady()
     
     if (cloudReady && typeof saveEfficiencyToCloud !== 'undefined') {
-      console.log('☁️ Starting cloud sync...')
-      
-      // Non-blocking cloud sync
       saveEfficiencyToCloud(efficiencyData)
         .then(() => {
-          console.log('✅ Efficiency synced to cloud')
+          console.log('✅ Machine efficiency synced to cloud')
           if (typeof showToast !== 'undefined') {
-            showToast('☁️ Data tersinkron ke cloud', 'success')
+            showToast('☁️ Efisiensi mesin tersinkron ke cloud', 'success')
           }
         })
         .catch(e => {
-          console.warn('⚠️ Cloud sync failed:', e)
-          // Save as pending for later sync
-          localStorage.setItem('pending_efficiency_sync', JSON.stringify({
-            data: efficiencyData,
-            timestamp: new Date().toISOString(),
-            device: getDeviceId()
-          }))
+          console.warn('Cloud sync failed:', e)
         })
-    } else {
-      console.warn('⚠️ Cloud not available, data saved locally')
     }
   } catch (e) {
-    console.error('❌ Error saving efficiency:', e)
+    console.error('Save error:', e)
   }
 }
 
@@ -144,10 +116,6 @@ function setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, editor) {
     timestamp: new Date().toISOString(),
     editor: editor || getCurrentUserId()
   }
-  
-  // Manual save only (no auto-save during import)
-  
-  console.log(`✏️ Set efficiency for machine ${machineId} on ${date}:`, efficiencyData[machineId][date])
   
   return efficiencyData[machineId][date]
 }
@@ -216,23 +184,13 @@ function getMachinesWithEfficiency(date) {
   return machinesWithData
 }
 
-// ============ BATCH IMPORT FROM EXCEL ============
+// ============ IMPORT EXCEL ============
+
 async function importEfficiencyFromExcel(file) {
   return new Promise(async (resolve, reject) => {
     try {
-      console.log('📂 Starting Excel import...')
-      
-      // ✅ STEP 1: ENSURE CLOUD IS READY FIRST
-      console.log('🔧 Ensuring cloud is ready...')
       const cloudReady = await ensureCloudReady()
       
-      if (cloudReady) {
-        console.log('✅ Cloud is ready')
-      } else {
-        console.warn('⚠️ Cloud not ready, will save locally only')
-      }
-      
-      // ✅ STEP 2: PROCESS EXCEL FILE
       const reader = new FileReader()
       
       reader.onload = async (e) => {
@@ -244,22 +202,13 @@ async function importEfficiencyFromExcel(file) {
           let errors = []
           let sheetsProcessed = 0
           
-          console.log(`📊 Found ${workbook.SheetNames.length} sheets`)
-          
-          // Process all sheets
           workbook.SheetNames.forEach((sheetName) => {
             try {
-              console.log(`📄 Processing sheet: ${sheetName}`)
-              
               const sheet = workbook.Sheets[sheetName]
               const rows = XLSX.utils.sheet_to_json(sheet)
               
-              if (rows.length === 0) {
-                console.warn(`⚠️ Sheet "${sheetName}" is empty`)
-                return
-              }
+              if (rows.length === 0) return
               
-              // Extract date from sheet name
               let sheetDate = null
               const dateMatch = sheetName.match(/(\d{4}-\d{2}-\d{2})|(\d{2}-\d{2}-\d{4})/)
               if (dateMatch) {
@@ -268,76 +217,57 @@ async function importEfficiencyFromExcel(file) {
                   const parts = sheetDate.split('-')
                   sheetDate = `${parts[2]}-${parts[1]}-${parts[0]}`
                 }
-                console.log(`📅 Sheet date: ${sheetDate}`)
               }
               
               rows.forEach((row, rowIndex) => {
                 try {
-                  const machineId = parseInt(row['Machine ID'] || row['Mesin'] || row['ID'] || row['Machine'] || row['No Mesin'])
+                  const machineId = parseInt(row['Machine ID'] || row['Mesin'] || row['ID'])
                   let date = row['Date'] || row['Tanggal'] || sheetDate
                   
-                  let shiftA = parseFloat(row['Shift A'] || row['A'] || row['shift_a'] || 0)
-                  let shiftB = parseFloat(row['Shift B'] || row['B'] || row['shift_b'] || 0)
-                  let shiftC = parseFloat(row['Shift C'] || row['C'] || row['shift_c'] || 0)
+                  let shiftA = parseFloat(row['Shift A'] || row['A'] || 0)
+                  let shiftB = parseFloat(row['Shift B'] || row['B'] || 0)
+                  let shiftC = parseFloat(row['Shift C'] || row['C'] || 0)
                   
-                  if (!machineId) {
-                    errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: Missing Machine ID`)
-                    return
-                  }
+                  if (!machineId || !date) return
                   
-                  if (!date) {
-                    errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: Missing Date`)
-                    return
-                  }
-                  
-                  // Auto-convert percentage (0.84 → 84)
                   if (shiftA > 0 && shiftA <= 1) shiftA = shiftA * 100
                   if (shiftB > 0 && shiftB <= 1) shiftB = shiftB * 100
                   if (shiftC > 0 && shiftC <= 1) shiftC = shiftC * 100
                   
-                  shiftA = parseFloat(shiftA.toFixed(2))
-                  shiftB = parseFloat(shiftB.toFixed(2))
-                  shiftC = parseFloat(shiftC.toFixed(2))
-                  
-                  // Normalize date
                   if (date instanceof Date) {
                     date = date.toISOString().split('T')[0]
                   } else if (typeof date === 'string') {
-                    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                      // Already YYYY-MM-DD
-                    } else if (date.match(/^\d{2}[-/]\d{2}[-/]\d{4}$/)) {
+                    if (date.match(/^\d{2}[-/]\d{2}[-/]\d{4}$/)) {
                       const parts = date.split(/[-/]/)
                       date = `${parts[2]}-${parts[1]}-${parts[0]}`
-                    } else {
+                    } else if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) {
                       date = new Date(date).toISOString().split('T')[0]
                     }
                   } else if (typeof date === 'number') {
-                    const excelDate = new Date((date - 25569) * 86400 * 1000)
-                    date = excelDate.toISOString().split('T')[0]
+                    date = new Date((date - 25569) * 86400 * 1000).toISOString().split('T')[0]
                   }
                   
-                  // Set data WITHOUT triggering save (batch mode)
-if (!efficiencyData[machineId]) {
-  efficiencyData[machineId] = {}
-}
+                  if (!efficiencyData[machineId]) {
+                    efficiencyData[machineId] = {}
+                  }
 
-const shifts = [shiftA, shiftB, shiftC].filter(s => s !== null && s !== undefined && !isNaN(s) && s > 0)
-const global = shifts.length > 0 
-  ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
-  : 0
+                  const shifts = [shiftA, shiftB, shiftC].filter(s => s > 0)
+                  const global = shifts.length > 0 
+                    ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length 
+                    : 0
 
-efficiencyData[machineId][date] = {
-  shiftA: parseFloat(shiftA).toFixed(2),
-  shiftB: parseFloat(shiftB).toFixed(2),
-  shiftC: parseFloat(shiftC).toFixed(2),
-  global: parseFloat(global).toFixed(2),
-  timestamp: new Date().toISOString(),
-  editor: `Excel Import (${sheetName})`
-}
+                  efficiencyData[machineId][date] = {
+                    shiftA: parseFloat(shiftA).toFixed(2),
+                    shiftB: parseFloat(shiftB).toFixed(2),
+                    shiftC: parseFloat(shiftC).toFixed(2),
+                    global: parseFloat(global).toFixed(2),
+                    timestamp: new Date().toISOString(),
+                    editor: `Excel Import (${sheetName})`
+                  }
 
-imported++
+                  imported++
                 } catch (err) {
-                  errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: ${err.message}`)
+                  errors.push(`Row ${rowIndex + 2}: ${err.message}`)
                 }
               })
               
@@ -347,46 +277,14 @@ imported++
             }
           })
           
-          // Save to localStorage ONCE (after all imports)
-localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
-console.log('💾 Batch saved to localStorage')
-          console.log(`✅ Imported ${imported} records from ${sheetsProcessed} sheets`)
+          localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
           
-          if (errors.length > 0) {
-            console.warn('⚠️ Import errors:', errors)
-          }
-          
-          // 💾 SAVE TO LOCALSTORAGE DULU!
-localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
-console.log('💾 Saved', imported, 'records to localStorage')
-          
-          // ✅ STEP 3: FORCE SYNC TO CLOUD
           if (cloudReady) {
-            console.log('☁️ Force syncing to cloud...')
-            
-            const syncSuccess = await forceSyncToCloud(efficiencyData)
-            
-            if (syncSuccess) {
-              console.log('✅✅✅ Data synced to cloud successfully!')
-              if (typeof showToast !== 'undefined') {
-                showToast(`✅ ${imported} data imported & synced to cloud`, 'success')
-              }
-            } else {
-              console.error('❌ Cloud sync failed after import')
-              if (typeof showToast !== 'undefined') {
-                showToast('⚠️ Imported but cloud sync failed', 'warn')
-              }
-            }
-          } else {
-            console.warn('⚠️ Cloud not available')
-            if (typeof showToast !== 'undefined') {
-              showToast('⚠️ Data imported locally only', 'warn')
-            }
+            await forceSyncToCloud(efficiencyData)
           }
           
           resolve({ imported, errors, sheetsProcessed })
         } catch (error) {
-          console.error('❌ Excel import error:', error)
           reject(error)
         }
       }
@@ -394,16 +292,15 @@ console.log('💾 Saved', imported, 'records to localStorage')
       reader.onerror = () => reject(reader.error)
       reader.readAsArrayBuffer(file)
     } catch (error) {
-      console.error('❌ Import initialization error:', error)
       reject(error)
     }
   })
 }
 
-// ============ EXPORT EFFICIENCY TO EXCEL ============
+// ============ EXPORT EXCEL ============
+
 async function exportEfficiencyToExcel(dateFrom, dateTo) {
   if (!window.ExcelJS && typeof XLSX === 'undefined') {
-    console.error('Excel library not available')
     return false
   }
   
@@ -415,7 +312,6 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
   
   Object.keys(efficiencyData).forEach(machineId => {
     const machineEfficiency = efficiencyData[machineId]
-    
     Object.keys(machineEfficiency).forEach(date => {
       const eff = machineEfficiency[date]
       
@@ -440,10 +336,7 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
     return parseInt(a['Machine ID']) - parseInt(b['Machine ID'])
   })
   
-  if (exportData.length === 0) {
-    console.warn('No data to export')
-    return false
-  }
+  if (exportData.length === 0) return false
   
   if (window.ExcelJS) {
     try {
@@ -464,12 +357,6 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
       ]
       
       ws.getRow(1).font = { bold: true }
-      ws.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFFD166' }
-      }
-      
       exportData.forEach(row => ws.addRow(row))
       
       const buf = await wb.xlsx.writeBuffer()
@@ -481,10 +368,9 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
       a.click()
       URL.revokeObjectURL(url)
       
-      console.log(`✅ Excel exported: ${filename}`)
       return true
     } catch (err) {
-      console.error('ExcelJS export failed:', err)
+      console.error('Export error:', err)
     }
   }
   
@@ -493,7 +379,6 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Efficiency Data')
     XLSX.writeFile(wb, filename)
-    console.log(`✅ Excel exported: ${filename}`)
     return true
   }
   
@@ -504,10 +389,7 @@ async function exportEfficiencyToExcel(dateFrom, dateTo) {
 
 function openEfficiencyModal(machineId) {
   const modal = document.getElementById('efficiency-modal')
-  if (!modal) {
-    console.warn('Efficiency modal not found in DOM')
-    return
-  }
+  if (!modal) return
   
   modal.dataset.machineId = machineId
   
@@ -561,18 +443,15 @@ async function saveEfficiencyFromModal() {
   
   if (!date) {
     if (typeof showToast !== 'undefined') {
-      showToast('Pilih tanggal terlebih dahulu', 'warn')
+      showToast('Pilih tanggal', 'warn')
     }
     return
   }
   
-  const result = setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC)
+  setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC)
+  await saveEfficiencyData()
   
-  console.log('✅ Efficiency saved:', machineId, date, result)
-  
-  // Update UI
   if (typeof renderGrid === 'function') renderGrid()
-  if (typeof updateChart === 'function') updateChart()
   if (typeof renderEfficiencyGrid === 'function') renderEfficiencyGrid()
   if (typeof updateBlockSummary === 'function') updateBlockSummary()
   if (typeof updateTrendChart === 'function') updateTrendChart()
@@ -612,28 +491,19 @@ function addEfficiencyIndicator(machineBox, machineId) {
 }
 
 function setupEfficiencyModalListeners() {
-  console.log('🔧 Setting up efficiency modal listeners...')
-  
   const saveBtn = document.getElementById('save-efficiency')
   const closeBtn = document.getElementById('close-efficiency-modal')
-  
-  if (!saveBtn && !closeBtn) {
-    console.log('ℹ️ Efficiency modal buttons not found')
-    return
-  }
   
   if (saveBtn) {
     const newSaveBtn = saveBtn.cloneNode(true)
     saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn)
     newSaveBtn.addEventListener('click', saveEfficiencyFromModal)
-    console.log('✅ Save button listener attached')
   }
   
   if (closeBtn) {
     const newCloseBtn = closeBtn.cloneNode(true)
     closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn)
     newCloseBtn.addEventListener('click', closeEfficiencyModal)
-    console.log('✅ Close button listener attached')
   }
   
   const modal = document.getElementById('efficiency-modal')
@@ -643,47 +513,25 @@ function setupEfficiencyModalListeners() {
         closeEfficiencyModal()
       }
     })
-    console.log('✅ Modal backdrop listener attached')
   }
 }
 
-// ============ HELPER ============
 function getCurrentUserId() {
-  return localStorage.getItem('currentUserId') || 
-         localStorage.getItem('current_user') || 
-         'unknown'
+  return localStorage.getItem('currentUserId') || 'unknown'
 }
 
 function getDeviceId() {
   let deviceId = localStorage.getItem('device_id')
   if (!deviceId) {
-    deviceId = 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now()
+    deviceId = 'device_' + Math.random().toString(36).substr(2, 9)
     localStorage.setItem('device_id', deviceId)
   }
   return deviceId
 }
 
-function getDeviceName() {
-  let deviceName = localStorage.getItem('device_name')
-  if (!deviceName) {
-    const ua = navigator.userAgent
-    let osName = 'Unknown'
-    if (ua.indexOf('Windows') > -1) osName = 'Windows PC'
-    else if (ua.indexOf('Mac') > -1) osName = 'Mac'
-    else if (ua.indexOf('Linux') > -1) osName = 'Linux'
-    else if (ua.indexOf('Android') > -1) osName = 'Android'
-    else if (ua.indexOf('iPhone') > -1) osName = 'iPhone'
-    else if (ua.indexOf('iPad') > -1) osName = 'iPad'
-    deviceName = `${osName} (${new Date().toLocaleDateString()})`
-    localStorage.setItem('device_name', deviceName)
-  }
-  return deviceName
-}
-
 // ============ INITIALIZE ============
 loadEfficiencyData()
 
-// Expose functions globally
 window.efficiencySystem = {
   setMachineEfficiency,
   getMachineEfficiency,
@@ -707,4 +555,4 @@ window.efficiencySystem = {
   MACHINE_CONFIG
 }
 
-console.log('✅ Efficiency system loaded - Cloud sync fixed')
+console.log('✅ Efficiency system loaded')
