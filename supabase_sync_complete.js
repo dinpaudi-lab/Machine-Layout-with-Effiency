@@ -424,29 +424,101 @@ async function setupRealtimeListeners(onMachines, onConstructs, onHistory) {
   console.log('✅ Real-time active');
 }
 
+let effUpdateTimeout = null
+let globalUpdateTimeout = null
+
 async function setupEfficiencyRealtimeListener(onEff, onGlobal) {
-  if (!isCloudAvailable || !supabase) return;
+  if (!isCloudAvailable || !supabase) {
+    console.warn('⚠️ Cloud not available')
+    return
+  }
   
-  const effChannel = supabase.channel('efficiency_' + Date.now())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'efficiency' }, async (p) => {
-      if (p.new?.device_id === getDeviceId()) return;
-      if (onEff) {
-        const e = await loadEfficiencyFromCloud();
-        if (e) onEff(e);
+  console.log('🔄 Setting up efficiency real-time listeners...')
+  
+  const effChannel = supabase.channel('efficiency_changes_' + Date.now())
+    .on('postgres_changes', { 
+      event: '*', 
+      schema: 'public', 
+      table: 'efficiency' 
+    }, async (payload) => {
+      if (payload.new?.device_id === getDeviceId()) {
+        return
       }
-    }).subscribe();
-  
-  const globalChannel = supabase.channel('global_eff_' + Date.now())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'global_efficiency' }, async (p) => {
-      if (p.new?.device_id === getDeviceId()) return;
-      if (onGlobal) {
-        const g = await loadGlobalEfficiencyFromCloud();
-        if (g) onGlobal(g);
+      
+      console.log('🔔 Machine efficiency update from cloud')
+      
+      if (effUpdateTimeout) clearTimeout(effUpdateTimeout)
+      
+      effUpdateTimeout = setTimeout(async () => {
+        try {
+          const freshData = await loadEfficiencyFromCloud()
+          
+          if (freshData && Object.keys(freshData).length > 0) {
+            console.log('✅ Loaded', Object.keys(freshData).length, 'machines')
+            
+            if (window.efficiencySystem) {
+              window.efficiencySystem.efficiencyData = freshData
+              localStorage.setItem('machine_efficiency_v2', JSON.stringify(freshData))
+            }
+            
+            if (onEff) {
+              onEff(freshData)
+            }
+          }
+        } catch (e) {
+          console.error('Error:', e)
+        }
+      }, 2000)
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Machine efficiency real-time subscribed')
       }
-    }).subscribe();
+    })
   
-  realtimeChannels.push(effChannel, globalChannel);
-  console.log('✅ Efficiency real-time active');
+  const globalChannel = supabase.channel('global_efficiency_changes_' + Date.now())
+    .on('postgres_changes', { 
+      event: '*', 
+      schema: 'public', 
+      table: 'global_efficiency' 
+    }, async (payload) => {
+      if (payload.new?.device_id === getDeviceId()) {
+        return
+      }
+      
+      console.log('🔔 Global efficiency update from cloud')
+      
+      if (globalUpdateTimeout) clearTimeout(globalUpdateTimeout)
+      
+      globalUpdateTimeout = setTimeout(async () => {
+        try {
+          const freshData = await loadGlobalEfficiencyFromCloud()
+          
+          if (freshData && Object.keys(freshData).length > 0) {
+            console.log('✅ Loaded', Object.keys(freshData).length, 'dates')
+            
+            if (window.globalEfficiencySystem) {
+              window.globalEfficiencySystem.globalEfficiencyData = freshData
+              localStorage.setItem('global_efficiency_v1', JSON.stringify(freshData))
+            }
+            
+            if (onGlobal) {
+              onGlobal(freshData)
+            }
+          }
+        } catch (e) {
+          console.error('Error:', e)
+        }
+      }, 2000)
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Global efficiency real-time subscribed')
+      }
+    })
+  
+  realtimeChannels.push(effChannel, globalChannel)
+  console.log('✅ Efficiency real-time active')
 }
 
 function cleanupListeners() {
