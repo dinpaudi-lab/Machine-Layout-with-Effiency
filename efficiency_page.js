@@ -236,10 +236,39 @@ function updateBlockSummary() {
   
   if (!window.efficiencySystem) return
   
-  const blockA = window.efficiencySystem.getBlockEfficiency('A', date)
-  const blockB = window.efficiencySystem.getBlockEfficiency('B', date)
-  const blockC = window.efficiencySystem.getBlockEfficiency('C', date)
-  const blockD = window.efficiencySystem.getBlockEfficiency('D', date)
+  // ✅ FIX: Load fresh data dari sistem
+  const allMachines = []
+  
+  // Ambil data dari SEMUA mesin (1-640)
+  for (let i = 1; i <= 640; i++) {
+    const eff = window.efficiencySystem.getMachineEfficiency(i, date)
+    if (eff && eff.global > 0) {
+      allMachines.push({
+        id: i,
+        block: getMachineBlock(i),
+        global: parseFloat(eff.global)
+      })
+    }
+  }
+  
+  console.log('📊 Total machines with data:', allMachines.length)
+  
+  // Hitung rata-rata per blok
+  const blocks = { A: [], B: [], C: [], D: [] }
+  
+  allMachines.forEach(m => {
+    if (blocks[m.block]) {
+      blocks[m.block].push(m.global)
+    }
+  })
+  
+  // Hitung average
+  const blockA = blocks.A.length > 0 ? (blocks.A.reduce((a,b) => a+b, 0) / blocks.A.length).toFixed(2) : 0
+  const blockB = blocks.B.length > 0 ? (blocks.B.reduce((a,b) => a+b, 0) / blocks.B.length).toFixed(2) : 0
+  const blockC = blocks.C.length > 0 ? (blocks.C.reduce((a,b) => a+b, 0) / blocks.C.length).toFixed(2) : 0
+  const blockD = blocks.D.length > 0 ? (blocks.D.reduce((a,b) => a+b, 0) / blocks.D.length).toFixed(2) : 0
+  
+  console.log('📊 Block stats:', { A: blocks.A.length, B: blocks.B.length, C: blocks.C.length, D: blocks.D.length })
   
   const elA = document.getElementById('block-a-eff')
   const elB = document.getElementById('block-b-eff')
