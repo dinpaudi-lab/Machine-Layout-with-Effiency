@@ -275,97 +275,163 @@ function getMachinesWithEfficiency(date) {
 
 // ============ BATCH IMPORT FROM EXCEL ============
 async function importEfficiencyFromExcel(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target.result)
-        const workbook = XLSX.read(data, { type: 'array' })
-        
-        let imported = 0
-        
-        workbook.SheetNames.forEach(sheetName => {
-          const sheet = workbook.Sheets[sheetName]
-          const rows = XLSX.utils.sheet_to_json(sheet)
-          
-          rows.forEach(row => {
-  if (row['Machine ID'] || row['Mesin']) {
-    const machineId = String(row['Machine ID'] || row['Mesin']) // ✅ FIX: Convert to string
-    
-    // ✅ FIX: Parse date properly
-    let date = row['Date'] || row['Tanggal']
-    if (date instanceof Date) {
-      date = date.toISOString().split('T')[0]
-    } else if (typeof date === 'number') {
-      const excelDate = new Date((date - 25569) * 86400 * 1000)
-      date = excelDate.toISOString().split('T')[0]
-    } else if (!date) {
-      date = new Date().toISOString().split('T')[0]
-    }
-    
-    const shiftA = parseFloat(row['Shift A'] || row['Shift_A'] || 0)
-    const shiftB = parseFloat(row['Shift B'] || row['Shift_B'] || 0)
-    const shiftC = parseFloat(row['Shift C'] || row['Shift_C'] || 0)
-    const editor = row['Editor'] || getCurrentUserId()
-    
-    // ✅ CRITICAL: Set WITHOUT auto-save (batch mode)
-    if (!efficiencyData[machineId]) {
-      efficiencyData[machineId] = {}
-    }
-    
-    const shifts = [shiftA, shiftB, shiftC].filter(s => s !== null && s !== undefined && !isNaN(s) && s > 0)
-    const global = shifts.length > 0 ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length : 0
-    
-    efficiencyData[machineId][date] = {
-      shiftA: parseFloat(shiftA).toFixed(2),
-      shiftB: parseFloat(shiftB).toFixed(2),
-      shiftC: parseFloat(shiftC).toFixed(2),
-      global: parseFloat(global).toFixed(2),
-      timestamp: new Date().toISOString(),
-      editor: editor
-    }
-    
-    imported++
-  }
-})
-        })
-        
-        if (imported > 0) {
-  // ✅ STEP 1: Save to localStorage
-  localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
-  console.log('💾 Saved', imported, 'records to localStorage')
-  
-  // ✅ STEP 2: FORCE SYNC TO CLOUD
-  console.log('☁️ Force syncing', imported, 'records to cloud...')
-  
-  const syncSuccess = await forceSyncToCloud(efficiencyData)
-  
-  if (syncSuccess) {
-    console.log('✅✅✅ All data synced to cloud successfully!')
-    if (typeof showToast !== 'undefined') {
-      showToast(`✅ ${imported} data imported & synced to cloud`, 'success')
-    }
-  } else {
-    console.error('❌ Cloud sync failed after import')
-    if (typeof showToast !== 'undefined') {
-      showToast('⚠️ Imported but cloud sync failed - data saved locally', 'warn')
-    }
-  }
-}
-        
-        resolve({ imported, total: rows.length })
-      } catch (error) {
-        console.error('Import error:', error)
-        reject(error)
+  return new Promise(async (resolve, reject) => {
+    try {
+      console.log('📂 Starting import...')
+      
+      // ✅ STEP 1: ENSURE CLOUD IS READY
+      console.log('🔧 Ensuring cloud is ready...')
+      const cloudReady = await ensureCloudReady()
+      
+      if (cloudReady) {
+        console.log('✅ Cloud is ready')
+      } else {
+        console.warn('⚠️ Cloud not ready, will save locally only')
       }
+      
+      // ✅ STEP 2: PROCESS EXCEL
+      const reader = new FileReader()
+      
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result)
+          const workbook = XLSX.read(data, { type: 'array' })
+          
+          let imported = 0
+          let errors = []
+          
+          console.log(`📊 Found ${workbook.SheetNames.length} sheets in Excel`)
+          
+          workbook.SheetNames.forEach((sheetName) => {
+            try {
+              console.log(`📄 Processing sheet: ${sheetName}`)
+              
+              const sheet = workbook.Sheets[sheetName]
+              const rows = XLSX.utils.sheet_to_json(sheet)
+              
+              if (rows.length === 0) {
+                console.warn(`⚠️ Sheet "${sheetName}" is empty, skipping`)
+                return
+              }
+              
+              console.log(`📋 Found ${rows.length} rows in "${sheetName}"`)
+              
+              rows.forEach((row, rowIndex) => {
+                try {
+                  if (row['Machine ID'] || row['Mesin']) {
+                    const machineId = String(row['Machine ID'] || row['Mesin'])
+                    
+                    // Parse date
+                    let date = row['Date'] || row['Tanggal']
+                    if (date instanceof Date) {
+                      date = date.toISOString().split('T')[0]
+                    } else if (typeof date === 'number') {
+                      const excelDate = new Date((date - 25569) * 86400 * 1000)
+                      date = excelDate.toISOString().split('T')[0]
+                    } else if (typeof date === 'string') {
+                      if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        // Already YYYY-MM-DD
+                      } else if (date.match(/^\d{2}[-/]\d{2}[-/]\d{4}$/)) {
+                        const parts = date.split(/[-/]/)
+                        date = `${parts[2]}-${parts[1]}-${parts[0]}`
+                      } else {
+                        date = new Date(date).toISOString().split('T')[0]
+                      }
+                    } else {
+                      date = new Date().toISOString().split('T')[0]
+                    }
+                    
+                    const shiftA = parseFloat(row['Shift A'] || row['Shift_A'] || 0)
+                    const shiftB = parseFloat(row['Shift B'] || row['Shift_B'] || 0)
+                    const shiftC = parseFloat(row['Shift C'] || row['Shift_C'] || 0)
+                    const editor = row['Editor'] || getCurrentUserId()
+                    
+                    // Set WITHOUT auto-save
+                    if (!efficiencyData[machineId]) {
+                      efficiencyData[machineId] = {}
+                    }
+                    
+                    const shifts = [shiftA, shiftB, shiftC].filter(s => s !== null && s !== undefined && !isNaN(s) && s > 0)
+                    const global = shifts.length > 0 ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length : 0
+                    
+                    efficiencyData[machineId][date] = {
+                      shiftA: parseFloat(shiftA).toFixed(2),
+                      shiftB: parseFloat(shiftB).toFixed(2),
+                      shiftC: parseFloat(shiftC).toFixed(2),
+                      global: parseFloat(global).toFixed(2),
+                      timestamp: new Date().toISOString(),
+                      editor: editor
+                    }
+                    
+                    imported++
+                  }
+                } catch (err) {
+                  errors.push(`Sheet "${sheetName}" Row ${rowIndex + 2}: ${err.message}`)
+                }
+              })
+            } catch (sheetErr) {
+              errors.push(`Sheet "${sheetName}": ${sheetErr.message}`)
+            }
+          })
+          
+          console.log(`✅ Imported ${imported} records`)
+          
+          if (errors.length > 0) {
+            console.warn('⚠️ Import errors:', errors)
+          }
+          
+          // ============ SAVE & SYNC ============
+          
+          if (imported > 0) {
+            // Save to localStorage
+            localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
+            console.log('💾 Saved', imported, 'records to localStorage')
+            
+            // Update window reference
+            if (window.efficiencySystem) {
+              window.efficiencySystem.efficiencyData = efficiencyData
+            }
+            
+            // Sync to cloud
+            if (cloudReady) {
+              console.log('☁️ Force syncing to cloud...')
+              
+              const syncSuccess = await forceSyncToCloud(efficiencyData)
+              
+              if (syncSuccess) {
+                console.log('✅✅✅ Data synced to cloud successfully!')
+                if (typeof showToast !== 'undefined') {
+                  showToast(`✅ ${imported} data imported & synced to cloud`, 'success')
+                }
+              } else {
+                console.error('❌ Cloud sync failed after import')
+                if (typeof showToast !== 'undefined') {
+                  showToast('⚠️ Imported but cloud sync failed', 'warn')
+                }
+              }
+            } else {
+              console.warn('⚠️ Cloud not available')
+              if (typeof showToast !== 'undefined') {
+                showToast(`✅ ${imported} data imported locally`, 'success')
+              }
+            }
+          }
+          
+          resolve({ imported, errors })
+        } catch (error) {
+          console.error('❌ Excel import error:', error)
+          reject(error)
+        }
+      }
+      
+      reader.onerror = () => reject(reader.error)
+      reader.readAsArrayBuffer(file)
+    } catch (error) {
+      console.error('❌ Import initialization error:', error)
+      reject(error)
     }
-    
-    reader.onerror = () => reject(new Error('File read error'))
-    reader.readAsArrayBuffer(file)
   })
 }
-
 // ============ EXPORT TO EXCEL ============
 async function exportEfficiencyToExcel() {
   try {
