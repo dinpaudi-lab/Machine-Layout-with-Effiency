@@ -433,6 +433,9 @@ async function setupEfficiencyRealtimeListener(onEff, onGlobal) {
     return
   }
   
+  // ✅ Cleanup existing channels first
+  cleanupListeners()
+  
   console.log('🔄 Setting up efficiency real-time listeners...')
   
   const effChannel = supabase.channel('efficiency_changes_' + Date.now())
@@ -441,6 +444,10 @@ async function setupEfficiencyRealtimeListener(onEff, onGlobal) {
       schema: 'public', 
       table: 'efficiency' 
     }, async (payload) => {
+      // ✅ ALLOW all updates, including own device
+      // if (payload.new?.device_id === getDeviceId()) {
+      //   return
+      // }
       if (payload.new?.device_id === getDeviceId()) {
         return
       }
@@ -457,13 +464,22 @@ async function setupEfficiencyRealtimeListener(onEff, onGlobal) {
     if (freshData && Object.keys(freshData).length > 0) {
       console.log('✅ Loaded', Object.keys(freshData).length, 'machines from cloud')
       
-      // ✅ CRITICAL: Update ALL references
+      // ✅ Update ALL references - CRITICAL FIX
       if (window.efficiencySystem) {
         window.efficiencySystem.efficiencyData = freshData
-        efficiencyData = freshData // Update module-level variable
         localStorage.setItem('machine_efficiency_v2', JSON.stringify(freshData))
         
+        // ✅ FORCE sync cloud data to internal system
+        if (typeof window.efficiencySystem.syncCloudDataToLocal === 'function') {
+          window.efficiencySystem.syncCloudDataToLocal()
+        }
+        
         console.log('💾 Updated local storage and memory')
+      }
+      
+      // ✅ Update module-level variable if it exists
+      if (typeof efficiencyData !== 'undefined') {
+        efficiencyData = freshData
       }
       
       // ✅ Trigger callback
@@ -472,16 +488,23 @@ async function setupEfficiencyRealtimeListener(onEff, onGlobal) {
         onEff(freshData)
       }
       
-      // ✅ Force UI update jika di halaman efficiency
-      if (typeof renderEfficiencyGrid === 'function') {
-        console.log('🎨 Forcing UI refresh...')
-        renderEfficiencyGrid()
-      }
-      if (typeof updateBlockSummary === 'function') {
-        updateBlockSummary()
-      }
-      if (typeof updateBlockChart === 'function') {
-        updateBlockChart()
+      // ✅ Force UI update if on efficiency page - NO DELAY
+      requestAnimationFrame(() => {
+        if (typeof renderEfficiencyGrid === 'function') {
+          console.log('🎨 Forcing UI refresh...')
+          renderEfficiencyGrid()
+        }
+        if (typeof updateBlockSummary === 'function') {
+          updateBlockSummary()
+        }
+        if (typeof updateBlockChart === 'function') {
+          updateBlockChart()
+        }
+      })
+      
+      // ✅ Show toast notification
+      if (typeof showToast === 'function') {
+        showToast('🔄 Data mesin diperbarui dari cloud', 'success')
       }
     } else {
       console.log('⚠️ No data received from cloud')
@@ -489,7 +512,7 @@ async function setupEfficiencyRealtimeListener(onEff, onGlobal) {
   } catch (e) {
     console.error('❌ Real-time update error:', e)
   }
-}, 2000)
+}, 1000) // ✅ Reduced from 2000ms to 1000ms for faster updates
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
