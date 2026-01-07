@@ -450,25 +450,46 @@ async function setupEfficiencyRealtimeListener(onEff, onGlobal) {
       if (effUpdateTimeout) clearTimeout(effUpdateTimeout)
       
       effUpdateTimeout = setTimeout(async () => {
-        try {
-          const freshData = await loadEfficiencyFromCloud()
-          
-          if (freshData && Object.keys(freshData).length > 0) {
-            console.log('✅ Loaded', Object.keys(freshData).length, 'machines')
-            
-            if (window.efficiencySystem) {
-              window.efficiencySystem.efficiencyData = freshData
-              localStorage.setItem('machine_efficiency_v2', JSON.stringify(freshData))
-            }
-            
-            if (onEff) {
-              onEff(freshData)
-            }
-          }
-        } catch (e) {
-          console.error('Error:', e)
-        }
-      }, 2000)
+  try {
+    console.log('🔄 Fetching fresh efficiency data from cloud...')
+    const freshData = await loadEfficiencyFromCloud()
+    
+    if (freshData && Object.keys(freshData).length > 0) {
+      console.log('✅ Loaded', Object.keys(freshData).length, 'machines from cloud')
+      
+      // ✅ CRITICAL: Update ALL references
+      if (window.efficiencySystem) {
+        window.efficiencySystem.efficiencyData = freshData
+        efficiencyData = freshData // Update module-level variable
+        localStorage.setItem('machine_efficiency_v2', JSON.stringify(freshData))
+        
+        console.log('💾 Updated local storage and memory')
+      }
+      
+      // ✅ Trigger callback
+      if (onEff) {
+        console.log('📡 Calling callback to update UI...')
+        onEff(freshData)
+      }
+      
+      // ✅ Force UI update jika di halaman efficiency
+      if (typeof renderEfficiencyGrid === 'function') {
+        console.log('🎨 Forcing UI refresh...')
+        renderEfficiencyGrid()
+      }
+      if (typeof updateBlockSummary === 'function') {
+        updateBlockSummary()
+      }
+      if (typeof updateBlockChart === 'function') {
+        updateBlockChart()
+      }
+    } else {
+      console.log('⚠️ No data received from cloud')
+    }
+  } catch (e) {
+    console.error('❌ Real-time update error:', e)
+  }
+}, 2000)
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
