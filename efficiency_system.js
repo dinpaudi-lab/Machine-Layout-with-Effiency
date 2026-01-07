@@ -290,49 +290,69 @@ async function importEfficiencyFromExcel(file) {
           const rows = XLSX.utils.sheet_to_json(sheet)
           
           rows.forEach(row => {
-            if (row['Machine ID'] || row['Mesin']) {
-              const machineId = row['Machine ID'] || row['Mesin']
-              const date = row['Date'] || row['Tanggal'] || new Date().toISOString().split('T')[0]
-              const shiftA = parseFloat(row['Shift A'] || row['Shift_A'] || 0)
-              const shiftB = parseFloat(row['Shift B'] || row['Shift_B'] || 0)
-              const shiftC = parseFloat(row['Shift C'] || row['Shift_C'] || 0)
-              const editor = row['Editor'] || getCurrentUserId()
-              
-              setMachineEfficiency(machineId, date, shiftA, shiftB, shiftC, editor)
-              imported++
-            }
-          })
+  if (row['Machine ID'] || row['Mesin']) {
+    const machineId = String(row['Machine ID'] || row['Mesin']) // ✅ FIX: Convert to string
+    
+    // ✅ FIX: Parse date properly
+    let date = row['Date'] || row['Tanggal']
+    if (date instanceof Date) {
+      date = date.toISOString().split('T')[0]
+    } else if (typeof date === 'number') {
+      const excelDate = new Date((date - 25569) * 86400 * 1000)
+      date = excelDate.toISOString().split('T')[0]
+    } else if (!date) {
+      date = new Date().toISOString().split('T')[0]
+    }
+    
+    const shiftA = parseFloat(row['Shift A'] || row['Shift_A'] || 0)
+    const shiftB = parseFloat(row['Shift B'] || row['Shift_B'] || 0)
+    const shiftC = parseFloat(row['Shift C'] || row['Shift_C'] || 0)
+    const editor = row['Editor'] || getCurrentUserId()
+    
+    // ✅ CRITICAL: Set WITHOUT auto-save (batch mode)
+    if (!efficiencyData[machineId]) {
+      efficiencyData[machineId] = {}
+    }
+    
+    const shifts = [shiftA, shiftB, shiftC].filter(s => s !== null && s !== undefined && !isNaN(s) && s > 0)
+    const global = shifts.length > 0 ? shifts.reduce((sum, val) => sum + val, 0) / shifts.length : 0
+    
+    efficiencyData[machineId][date] = {
+      shiftA: parseFloat(shiftA).toFixed(2),
+      shiftB: parseFloat(shiftB).toFixed(2),
+      shiftC: parseFloat(shiftC).toFixed(2),
+      global: parseFloat(global).toFixed(2),
+      timestamp: new Date().toISOString(),
+      editor: editor
+    }
+    
+    imported++
+  }
+})
         })
         
         if (imported > 0) {
-          // Save to localStorage
-          localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
-          console.log('💾 Saved', imported, 'records to localStorage')
-          
-          // ✅ STEP 3: FORCE SYNC TO CLOUD
-          if (typeof window.isCloudAvailable !== 'undefined' && window.isCloudAvailable) {
-            console.log('☁️ Force syncing to cloud...')
-            
-            const syncSuccess = await forceSyncToCloud(efficiencyData)
-            
-            if (syncSuccess) {
-              console.log('✅✅✅ Data synced to cloud successfully!')
-              if (typeof showToast !== 'undefined') {
-                showToast(`✅ ${imported} data imported & synced to cloud`, 'success')
-              }
-            } else {
-              console.error('❌ Cloud sync failed after import')
-              if (typeof showToast !== 'undefined') {
-                showToast('⚠️ Imported but cloud sync failed', 'warn')
-              }
-            }
-          } else {
-            console.warn('⚠️ Cloud not available')
-            if (typeof showToast !== 'undefined') {
-              showToast(`✅ ${imported} data imported locally`, 'success')
-            }
-          }
-        }
+  // ✅ STEP 1: Save to localStorage
+  localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
+  console.log('💾 Saved', imported, 'records to localStorage')
+  
+  // ✅ STEP 2: FORCE SYNC TO CLOUD
+  console.log('☁️ Force syncing', imported, 'records to cloud...')
+  
+  const syncSuccess = await forceSyncToCloud(efficiencyData)
+  
+  if (syncSuccess) {
+    console.log('✅✅✅ All data synced to cloud successfully!')
+    if (typeof showToast !== 'undefined') {
+      showToast(`✅ ${imported} data imported & synced to cloud`, 'success')
+    }
+  } else {
+    console.error('❌ Cloud sync failed after import')
+    if (typeof showToast !== 'undefined') {
+      showToast('⚠️ Imported but cloud sync failed - data saved locally', 'warn')
+    }
+  }
+}
         
         resolve({ imported, total: rows.length })
       } catch (error) {
