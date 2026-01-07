@@ -302,28 +302,31 @@ select option:hover {
 <!-- Mobile Debug Console -->
 <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>eruda.init();</script>
-  <footer class="footer">© 2025 — Dibuat oleh Didin</footer>
 
-  <!-- Hidden file input -->
-  <input type="file" id="efficiency-machine-file-input" accept=".xlsx,.xls" style="display: none;" />
-  <input type="file" id="efficiency-global-file-input" accept=".xlsx,.xls" style="display: none;" />
-  
+<footer class="footer">© 2025 — Dibuat oleh Didin</footer>
+
+<!-- Hidden file input -->
+<input type="file" id="efficiency-machine-file-input" accept=".xlsx,.xls" style="display: none;" />
+<input type="file" id="efficiency-global-file-input" accept=".xlsx,.xls" style="display: none;" />
+
 <!-- Auth Redirect System -->
 <script src="auth_redirect.js"></script>
-  
+
 <!-- Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
 
-<!-- App Scripts -->
+<!-- App Scripts - URUTAN PENTING! -->
+<script src="supabase_sync_complete.js"></script>
 <script src="efficiency_system.js"></script>
 <script src="efficiency_template.js"></script>
 <script src="efficiency_global_system.js"></script>       
 <script src="efficiency_global_template.js"></script>     
+
 <script>
-  // Simple toast function for efficiency page
+  // Simple toast function
   function showToast(text, type = '') {
     let root = document.querySelector('.toast-root')
     if (!root) {
@@ -365,6 +368,7 @@ select option:hover {
     }, 3500)
   }
 </script>
+
 <script src="efficiency_page.js"></script>
 </body>
 </html>
