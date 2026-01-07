@@ -496,42 +496,36 @@ function setupEfficiencyRealtime() {
   
   setupEfficiencyRealtimeListener(
     (newEffData) => {
-      // ✅ CEK: Kalau loading overlay masih ada, SKIP!
-      const overlay = document.getElementById('import-loading-overlay')
-      if (overlay && overlay.style.display !== 'none') {
-        console.log('⏸️ Loading overlay active, skip update')
-        return
-      }
+      // ✅ REMOVE loading overlay check - always update
       
       clearTimeout(updateTimeout)
       updateTimeout = setTimeout(() => {
         console.log('📡 Efficiency updated from cloud')
         
         if (window.efficiencySystem) {
+          // ✅ Update BOTH local and system data
           window.efficiencySystem.efficiencyData = newEffData
           localStorage.setItem('machine_efficiency_v2', JSON.stringify(newEffData))
           
-          // ✅ SYNC cloud data to internal system
+          // ✅ CRITICAL: Sync to internal system
           if (typeof window.efficiencySystem.syncCloudDataToLocal === 'function') {
+            console.log('🔗 Syncing cloud data to internal system...')
             window.efficiencySystem.syncCloudDataToLocal()
           }
           
-          renderEfficiencyGrid()
-          updateBlockSummary()
-          updateBlockChart()
+          // ✅ Force immediate UI update
+          requestAnimationFrame(() => {
+            renderEfficiencyGrid()
+            updateBlockSummary()
+            updateBlockChart()
+          })
           
           showToast('🔄 Data diperbarui', 'success')
         }
-      }, 2000)
+      }, 500) // ✅ Reduced delay for faster response
     },
     (newGlobalData) => {
-      // ✅ CEK: Kalau loading overlay masih ada, SKIP!
-      const overlay = document.getElementById('import-loading-overlay')
-      if (overlay && overlay.style.display !== 'none') {
-        console.log('⏸️ Loading overlay active, skip update')
-        return
-      }
-      
+      // Global data handler - keep as is
       clearTimeout(updateTimeout)
       updateTimeout = setTimeout(() => {
         console.log('📡 Global updated')
@@ -544,7 +538,7 @@ function setupEfficiencyRealtime() {
           
           showToast('🔄 Global diperbarui', 'success')
         }
-      }, 2000)
+      }, 500)
     }
   )
 }
