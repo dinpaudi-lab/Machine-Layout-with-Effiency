@@ -89,26 +89,24 @@ function loadEfficiencyData() {
 
 // ✅ NEW: Sync cloud data to local
 function syncCloudDataToLocal() {
+  console.log('🔗 Starting cloud to local sync...')
+  
   if (window.efficiencySystem && window.efficiencySystem.efficiencyData) {
     const cloudData = window.efficiencySystem.efficiencyData
     
-    // Merge cloud data dengan local
-    Object.keys(cloudData).forEach(machineId => {
-      if (!efficiencyData[machineId]) {
-        efficiencyData[machineId] = {}
-      }
-      
-      Object.keys(cloudData[machineId]).forEach(date => {
-        // Cloud data has priority
-        efficiencyData[machineId][date] = cloudData[machineId][date]
-      })
-    })
+    console.log('📥 Cloud data available:', Object.keys(cloudData).length, 'machines')
     
-    // Save merged data to localStorage
+    // ✅ REPLACE local data completely with cloud data
+    efficiencyData = JSON.parse(JSON.stringify(cloudData)) // Deep clone
+    
+    // Save to localStorage
     localStorage.setItem(EFFICIENCY_KEY, JSON.stringify(efficiencyData))
+    
     console.log('✅ Cloud data synced to local:', Object.keys(efficiencyData).length, 'machines')
     return true
   }
+  
+  console.warn('⚠️ No cloud data available to sync')
   return false
 }
 
