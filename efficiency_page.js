@@ -58,22 +58,20 @@ async function loadAllEfficiencyData(force = false) {
     let cloudDataLoaded = false
     
     // Load machine efficiency
-    if (typeof loadEfficiencyFromCloud !== 'undefined') {
-      const cloudData = await loadEfficiencyFromCloud()
-      if (cloudData && Object.keys(cloudData).length > 0) {
-        console.log('✅ Loaded', Object.keys(cloudData).length, 'machines from cloud')
-        
-        if (window.efficiencySystem) {
-          window.efficiencySystem.efficiencyData = cloudData
-          localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
-          
-          // ✅ SYNC cloud data to local system
-          if (typeof window.efficiencySystem.syncCloudDataToLocal === 'function') {
-            window.efficiencySystem.syncCloudDataToLocal()
-          }
-          
-          cloudDataLoaded = true
-        }
+if (typeof loadEfficiencyFromCloud !== 'undefined') {
+  const cloudData = await loadEfficiencyFromCloud()
+  if (cloudData && Object.keys(cloudData).length > 0) {
+    console.log('✅ Loaded', Object.keys(cloudData).length, 'machines from cloud')
+    
+    if (window.efficiencySystem) {
+      // ✅ CRITICAL: Update BOTH references
+      window.efficiencySystem.efficiencyData = cloudData
+      efficiencyData = cloudData // Update local reference too!
+      
+      localStorage.setItem('machine_efficiency_v2', JSON.stringify(cloudData))
+      
+      cloudDataLoaded = true
+    }
       } else {
         console.log('ℹ️ No machine efficiency data in cloud, using local')
         // Fallback to localStorage
